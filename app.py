@@ -25,7 +25,7 @@ def buscar_hash_usuario(usuario: str) -> str | None:
     try:
         conn = sqlite3.connect(ARQUIVO_BANCO)
         cursor = conn.cursor()
-
+        
         # Busca a hash considerando tabelas comuns (usuarios ou users)
         cursor.execute("SELECT senha_hash FROM usuarios WHERE usuario = ?", (usuario,))
         resultado = cursor.fetchone()
@@ -33,7 +33,7 @@ def buscar_hash_usuario(usuario: str) -> str | None:
 
         if resultado:
             return resultado[0]
-
+            
     except sqlite3.DatabaseError:
         # Tativa 2: Tratar como arquivo de texto simples em caso de falha do SQLite
         try:
@@ -42,7 +42,7 @@ def buscar_hash_usuario(usuario: str) -> str | None:
                     linha = linha.strip()
                     if not linha or ":" not in linha:
                         continue
-
+                    
                     partes = linha.split(":", 1)
                     user_arq = partes[0].strip()
                     hash_arq = partes[1].strip()
@@ -75,6 +75,7 @@ if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "usuario_atual" not in st.session_state:
     st.session_state["usuario_atual"] = ""
+
 
 # --- Tela de Login / Dashboard ---
 if not st.session_state["logado"]:
