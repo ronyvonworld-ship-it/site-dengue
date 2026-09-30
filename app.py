@@ -157,9 +157,22 @@ else:
 
             # Busca filtrada dinâmica em tempo real
             dados = bairro.listar_quarteiroes(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
+            total_imoveis, detalhe_tipos = bairro.obter_resumo_filtros(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
 
             st.markdown("---")
-            st.subheader(f"Resultados Encontrados ({len(dados)})")
+            
+            # --- PAINEL DE SOMA DOS IMÓVEIS FILTRADOS ---
+            st.subheader("📊 Resumo dos Filtros Aplicados")
+            m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
+            
+            m_col1.metric("Total de Imóveis", total_imoveis)
+            m_col2.metric("Residências", detalhe_tipos.get("Residência", 0))
+            m_col3.metric("Comércios", detalhe_tipos.get("Comércio", 0))
+            m_col4.metric("Terrenos Baldios", detalhe_tipos.get("Terreno Baldio", 0))
+            m_col5.metric("Outros", detalhe_tipos.get("Outro", 0))
+
+            st.markdown("---")
+            st.subheader(f"Lista de Registros ({len(dados)})")
 
             if dados:
                 df = pd.DataFrame(dados, columns=["ID", "Bairro", "Quarteirão", "Rua", "Lado", "Nº Imóvel", "Tipo"])
