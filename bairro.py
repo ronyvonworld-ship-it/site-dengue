@@ -1,4 +1,5 @@
 import sqlite3
+import streamlit as st
 
 ARQUIVO_DB_BAIRRO = "bairro.db"
 
@@ -106,25 +107,72 @@ def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_ti
 
 
 def obter_resumo_filtros(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
-    """
-    Retorna o total geral e a contagem agrupada por tipo de imóvel
-    considerando exclusivamente os filtros aplicados.
-    """
+    """Retorna o total geral e a contagem agrupada por tipo de imóvel conforme os filtros."""
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
 
     sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
 
-    # 1. Total Geral de Imóveis Filtrados
     sql_total = "SELECT COUNT(*) FROM quarteiroes" + sql_where
     cursor.execute(sql_total, params)
     total_imoveis = cursor.fetchone()[0]
 
-    # 2. Total Por Tipo de Imóvel
     sql_por_tipo = "SELECT tipo_imovel, COUNT(*) FROM quarteiroes" + sql_where + " GROUP BY tipo_imovel"
     cursor.execute(sql_por_tipo, params)
     por_tipo = dict(cursor.fetchall())
 
     conn.close()
     return total_imoveis, por_tipo
+
+
+# --- FUNÇÕES DE INTERFACE COM CONFIRMAÇÃO ---
+
+def confirmar_e_atualizar(id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val):
+    """Exibe a caixa de confirmação para edição dentro do módulo bairro."""
+    chave_edicao = f"confirmar_edicao_{id_sel}"
+    
+    if st.button("💾 Salvar Alterações", use_container_width=True, key=f"btn_salvar_{id_sel}"):
+        st.session_state[chave_edicao] = True
+        st.session_state[f"confirmar_exclusao_{id_sel}"] = False
+
+    if st.session_state.get(chave_edicao, False):
+        st.info(f"❓ Tem certeza de que deseja atualizar o **Registro ID {id_sel}**?")
+        col_sim, col_nao = st.columns(2)
+        
+        with col_sim:
+            if st.button("✅ Confirmar Atualização", key=f"sim_edit_{id_sel}", use_container_width=True):
+                atualizar_quarteirao(id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val)
+                st.session_state[chave_edicao] = False
+                st.success(f"Registro ID {id_sel} atualizado com sucesso!")
+                st.rerun()
+
+        with col_nao:
+            if st.button("❌ Cancelar", key=f"cancela_edit_{id_sel}", use_container_width=True):
+                st.session_state[chave_edicao] = False
+                st.rerun()
+
+
+def confirmar_e_excluir(id_sel):
+    """Exibe a caixa de confirmação para exclusão dentro do módulo bairro."""
+    chave_exclusao = f"confirmar_exclusao_{id_sel}"
+    
+    if st.button("🗑️ Excluir Imóvel", use_container_width=True, key=f"btn_excluir_{id_sel}"):
+        st.session_state[chave_exclusao] = True
+        st.session_state[f"confirmar_edicao_{id_sel}"] = False
+
+    if st.session_state.get(chave_exclusao, False):
+        st.warning(f"⚠️ **ATENÇÃO:** Tem certeza de que deseja excluir o **Registro ID {id_sel}**?")
+        col_sim, col_nao = st.columns(2)
+
+        with col_sim:
+            if st.button("🔴 Sim, Excluir Registro", key=f"sim_exc_{id_sel}", use_container_width=True):
+                excluir_quarteirao(id_sel)
+                st.session_state[chave_exclusao] = False
+                st.success(f"Registro ID {id_sel} excluído com sucesso!")
+                st.rerun()
+
+        with col_nao:
+            if st.button("❌ Cancelar", key=f"cancela_exc_{id_sel}", use_container_width=True):
+                st.session_state[chave_exclusao] = False
+                st.rerun()
