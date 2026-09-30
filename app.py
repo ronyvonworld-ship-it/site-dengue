@@ -63,6 +63,12 @@ if "usuario_atual" not in st.session_state:
 if "tipo_usuario" not in st.session_state:
     st.session_state["tipo_usuario"] = ""
 
+# Estados para controlar os diálogos de confirmação
+if "confirmar_exclusao" not in st.session_state:
+    st.session_state["confirmar_exclusao"] = False
+if "confirmar_edicao" not in st.session_state:
+    st.session_state["confirmar_edicao"] = False
+
 
 if not st.session_state["logado"]:
     st.title("🔒 Acesso ao Sistema")
@@ -196,6 +202,7 @@ else:
 
                 st.markdown(f"**Modificando Registro ID `{id_sel}`**")
                 
+                # Formulário para edição dos dados
                 with st.form("form_edicao"):
                     col_e1, col_e2 = st.columns(2)
                     with col_e1:
@@ -210,21 +217,52 @@ else:
                         idx_tipo = tipos_validos.index(reg[6]) if reg[6] in tipos_validos else 0
                         etipo = st.selectbox("Tipo de Imóvel", tipos_validos, index=idx_tipo)
 
-                    col_btn1, col_btn2 = st.columns(2)
-                    with col_btn1:
-                        btn_atualizar = st.form_submit_button("💾 Salvar Alterações", use_container_width=True)
-                    with col_btn2:
-                        btn_excluir = st.form_submit_button("🗑️ Excluir Imóvel", use_container_width=True)
+                    btn_submeter_edicao = st.form_submit_button("💾 Salvar Alterações", use_container_width=True)
 
-                    if btn_atualizar:
-                        bairro.atualizar_quarteirao(id_sel, ebairro, equarteirao, erua, elado, eimovel, etipo)
-                        st.success(f"Registro ID {id_sel} atualizado com sucesso!")
-                        st.rerun()
+                    if btn_submeter_edicao:
+                        st.session_state["confirmar_edicao"] = True
+                        st.session_state["confirmar_exclusao"] = False
 
-                    if btn_excluir:
-                        bairro.excluir_quarteirao(id_sel)
-                        st.warning(f"Registro ID {id_sel} excluído do banco de dados!")
-                        st.rerun()
+                # Área de Ações e Confirmação de Exclusão fora do formulário
+                col_exc, _ = st.columns([1, 1])
+                with col_exc:
+                    if st.button("🗑️ Excluir Imóvel", use_container_width=True):
+                        st.session_state["confirmar_exclusao"] = True
+                        st.session_state["confirmar_edicao"] = False
+
+                # --- MENSAGEM E BOTÕES DE CONFIRMAÇÃO DE EDIÇÃO ---
+                if st.session_state["confirmar_edicao"]:
+                    st.info(f"❓ Tem certeza de que deseja atualizar as informações do **Registro ID {id_sel}**?")
+                    col_sim_e, col_nao_e = st.columns(2)
+                    
+                    with col_sim_e:
+                        if st.button("✅ Confirmar Atualização", use_container_width=True):
+                            bairro.atualizar_quarteirao(id_sel, ebairro, equarteirao, erua, elado, eimovel, etipo)
+                            st.session_state["confirmar_edicao"] = False
+                            st.success(f"Registro ID {id_sel} atualizado com sucesso!")
+                            st.rerun()
+
+                    with col_nao_e:
+                        if st.button("❌ Cancelar", key="cancela_edicao", use_container_width=True):
+                            st.session_state["confirmar_edicao"] = False
+                            st.rerun()
+
+                # --- MENSAGEM E BOTÕES DE CONFIRMAÇÃO DE EXCLUSÃO ---
+                if st.session_state["confirmar_exclusao"]:
+                    st.warning(f"⚠️ **ATENÇÃO:** Tem certeza de que deseja excluir definitivamente o **Registro ID {id_sel}**?")
+                    col_sim_x, col_nao_x = st.columns(2)
+
+                    with col_sim_x:
+                        if st.button("🔴 Sim, Excluir Registro", use_container_width=True):
+                            bairro.excluir_quarteirao(id_sel)
+                            st.session_state["confirmar_exclusao"] = False
+                            st.success(f"Registro ID {id_sel} excluído com sucesso!")
+                            st.rerun()
+
+                    with col_nao_x:
+                        if st.button("❌ Cancelar", key="cancela_exclusao", use_container_width=True):
+                            st.session_state["confirmar_exclusao"] = False
+                            st.rerun()
 
             else:
                 st.info("Nenhum imóvel corresponde aos filtros selecionados.")
