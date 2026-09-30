@@ -63,12 +63,6 @@ if "usuario_atual" not in st.session_state:
 if "tipo_usuario" not in st.session_state:
     st.session_state["tipo_usuario"] = ""
 
-# Estados para controlar os diálogos de confirmação
-if "confirmar_exclusao" not in st.session_state:
-    st.session_state["confirmar_exclusao"] = False
-if "confirmar_edicao" not in st.session_state:
-    st.session_state["confirmar_edicao"] = False
-
 
 if not st.session_state["logado"]:
     st.title("🔒 Acesso ao Sistema")
@@ -110,7 +104,11 @@ else:
 
     if st.session_state["tipo_usuario"] == "Administrador":
 
-        aba_cadastro, aba_registros = st.tabs(["➕ Cadastrar Imóvel", "🔍 Consultar, Editar e Excluir"])
+        aba_cadastro, aba_registros, aba_backup = st.tabs([
+            "➕ Cadastrar Imóvel", 
+            "🔍 Consultar, Editar e Excluir", 
+            "💾 Backup / Restaurar DB"
+        ])
 
         # TAB 1: Cadastrar
         with aba_cadastro:
@@ -161,7 +159,7 @@ else:
             with col_f3:
                 f_tipo = st.selectbox("Filtrar por Tipo", ["Todos", "Residência", "Comércio", "Terreno Baldio", "Outro"], key="f_tipo")
 
-            # Busca filtrada dinâmica em tempo real
+            # Busca filtrada e resumo
             dados = bairro.listar_quarteiroes(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
             total_imoveis, detalhe_tipos = bairro.obter_resumo_filtros(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
 
@@ -202,70 +200,32 @@ else:
 
                 st.markdown(f"**Modificando Registro ID `{id_sel}`**")
                 
-                # Formulário para edição dos dados
-                with st.form("form_edicao"):
-                    col_e1, col_e2 = st.columns(2)
-                    with col_e1:
-                        ebairro = st.text_input("Bairro", value=str(reg[1]))
-                        equarteirao = st.text_input("Nº Quarteirão", value=str(reg[2]))
-                        erua = st.text_input("Rua", value=str(reg[3]))
-                    with col_e2:
-                        elado = st.text_input("Nº Lado", value=str(reg[4]))
-                        eimovel = st.text_input("Nº Imóvel", value=str(reg[5]))
-                        
-                        tipos_validos = ["Residência", "Comércio", "Terreno Baldio", "Outro"]
-                        idx_tipo = tipos_validos.index(reg[6]) if reg[6] in tipos_validos else 0
-                        etipo = st.selectbox("Tipo de Imóvel", tipos_validos, index=idx_tipo)
-
-                    btn_submeter_edicao = st.form_submit_button("💾 Salvar Alterações", use_container_width=True)
-
-                    if btn_submeter_edicao:
-                        st.session_state["confirmar_edicao"] = True
-                        st.session_state["confirmar_exclusao"] = False
-
-                # Área de Ações e Confirmação de Exclusão fora do formulário
-                col_exc, _ = st.columns([1, 1])
-                with col_exc:
-                    if st.button("🗑️ Excluir Imóvel", use_container_width=True):
-                        st.session_state["confirmar_exclusao"] = True
-                        st.session_state["confirmar_edicao"] = False
-
-                # --- MENSAGEM E BOTÕES DE CONFIRMAÇÃO DE EDIÇÃO ---
-                if st.session_state["confirmar_edicao"]:
-                    st.info(f"❓ Tem certeza de que deseja atualizar as informações do **Registro ID {id_sel}**?")
-                    col_sim_e, col_nao_e = st.columns(2)
+                # Campos para alteração
+                col_e1, col_e2 = st.columns(2)
+                with col_e1:
+                    ebairro = st.text_input("Bairro", value=str(reg[1]), key=f"eb_{id_sel}")
+                    equarteirao = st.text_input("Nº Quarteirão", value=str(reg[2]), key=f"eq_{id_sel}")
+                    erua = st.text_input("Rua", value=str(reg[3]), key=f"er_{id_sel}")
+                with col_e2:
+                    elado = st.text_input("Nº Lado", value=str(reg[4]), key=f"el_{id_sel}")
+                    eimovel = st.text_input("Nº Imóvel", value=str(reg[5]), key=f"ei_{id_sel}")
                     
-                    with col_sim_e:
-                        if st.button("✅ Confirmar Atualização", use_container_width=True):
-                            bairro.atualizar_quarteirao(id_sel, ebairro, equarteirao, erua, elado, eimovel, etipo)
-                            st.session_state["confirmar_edicao"] = False
-                            st.success(f"Registro ID {id_sel} atualizado com sucesso!")
-                            st.rerun()
+                    tipos_validos = ["Residência", "Comércio", "Terreno Baldio", "Outro"]
+                    idx_tipo = tipos_validos.index(reg[6]) if reg[6] in tipos_validos else 0
+                    etipo = st.selectbox("Tipo de Imóvel", tipos_validos, index=idx_tipo, key=f"et_{id_sel}")
 
-                    with col_nao_e:
-                        if st.button("❌ Cancelar", key="cancela_edicao", use_container_width=True):
-                            st.session_state["confirmar_edicao"] = False
-                            st.rerun()
-
-                # --- MENSAGEM E BOTÕES DE CONFIRMAÇÃO DE EXCLUSÃO ---
-                if st.session_state["confirmar_exclusao"]:
-                    st.warning(f"⚠️ **ATENÇÃO:** Tem certeza de que deseja excluir definitivamente o **Registro ID {id_sel}**?")
-                    col_sim_x, col_nao_x = st.columns(2)
-
-                    with col_sim_x:
-                        if st.button("🔴 Sim, Excluir Registro", use_container_width=True):
-                            bairro.excluir_quarteirao(id_sel)
-                            st.session_state["confirmar_exclusao"] = False
-                            st.success(f"Registro ID {id_sel} excluído com sucesso!")
-                            st.rerun()
-
-                    with col_nao_x:
-                        if st.button("❌ Cancelar", key="cancela_exclusao", use_container_width=True):
-                            st.session_state["confirmar_exclusao"] = False
-                            st.rerun()
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    bairro.confirmar_e_atualizar(id_sel, ebairro, equarteirao, erua, elado, eimovel, etipo)
+                with col_btn2:
+                    bairro.confirmar_e_excluir(id_sel)
 
             else:
                 st.info("Nenhum imóvel corresponde aos filtros selecionados.")
+
+        # TAB 3: Backup / Restaurar DB
+        with aba_backup:
+            bairro.gerenciar_backup_db()
 
     else:
         st.warning("Seu perfil de usuário não possui permissão de acesso.")
