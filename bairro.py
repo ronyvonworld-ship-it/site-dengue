@@ -1,4 +1,5 @@
 import sqlite3
+import os
 import streamlit as st
 
 ARQUIVO_DB_BAIRRO = "bairro.db"
@@ -176,3 +177,48 @@ def confirmar_e_excluir(id_sel):
             if st.button("❌ Cancelar", key=f"cancela_exc_{id_sel}", use_container_width=True):
                 st.session_state[chave_exclusao] = False
                 st.rerun()
+
+
+# --- FUNÇÕES DE DOWNLOAD E UPLOAD DO BANCO DE DADOS ---
+
+def obter_bytes_db():
+    """Garante que o banco existe e retorna os bytes do arquivo para download."""
+    init_db_bairro()
+    if os.path.exists(ARQUIVO_DB_BAIRRO):
+        with open(ARQUIVO_DB_BAIRRO, "rb") as f:
+            return f.read()
+    return b""
+
+
+def gerenciar_backup_db():
+    """Renderiza os botões de Download e Upload para gerenciamento do arquivo .db."""
+    st.subheader("💾 Backup e Restauração do Banco de Dados (`bairro.db`)")
+    
+    col_down, col_up = st.columns(2)
+
+    # Download do arquivo DB
+    with col_down:
+        st.markdown("**1. Baixar cópia do banco de dados**")
+        bytes_db = obter_bytes_db()
+        st.download_button(
+            label="⬇️ Baixar bairro.db",
+            data=bytes_db,
+            file_name="bairro.db",
+            mime="application/x-sqlite3",
+            use_container_width=True
+        )
+
+    # Upload e substituição do arquivo DB
+    with col_up:
+        st.markdown("**2. Restaurar/Substituir banco de dados**")
+        arquivo_enviado = st.file_uploader("Selecione um arquivo .db", type=["db", "sqlite3", "sqlite"])
+
+        if arquivo_enviado is not None:
+            if st.button("⚠️ Confirmar Sobrescrita do Banco", use_container_width=True):
+                try:
+                    with open(ARQUIVO_DB_BAIRRO, "wb") as f:
+                        f.write(arquivo_enviado.getbuffer())
+                    st.success("Banco de dados substituído com sucesso!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar arquivo: {e}")
