@@ -94,9 +94,13 @@ def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_ti
 
 
 def abrir_janela_quarteiroes():
-    """Importa o tkinter e abre a janela gráfica apenas se for executado localmente."""
-    import tkinter as tk
-    from tkinter import ttk, messagebox
+    """Tenta abrir a interface desktop Tkinter (apenas para execução local)."""
+    try:
+        import tkinter as tk
+        from tkinter import ttk, messagebox
+    except ImportError:
+        print("Tkinter não está disponível neste ambiente (modo web / cloud ativo).")
+        return
 
     class JanelaQuarteiroesTkinter:
         def __init__(self, root):
@@ -114,7 +118,7 @@ def abrir_janela_quarteiroes():
             main_frame = ttk.Frame(self.root, padding="15")
             main_frame.pack(fill=tk.BOTH, expand=True)
 
-            # --- Form de Cadastro / Edição ---
+            # --- Formulario ---
             form_frame = ttk.LabelFrame(main_frame, text=" Formulário (Cadastrar / Editar) ", padding="10")
             form_frame.pack(fill=tk.X, pady=(0, 10))
 
@@ -148,7 +152,6 @@ def abrir_janela_quarteiroes():
             self.combo_tipo.current(0)
             self.combo_tipo.grid(row=2, column=3, padx=5, pady=2, sticky=tk.W)
 
-            # Botões de Ação do Formulário
             btn_box = ttk.Frame(form_frame)
             btn_box.grid(row=3, column=0, columnspan=4, pady=10)
 
@@ -164,7 +167,7 @@ def abrir_janela_quarteiroes():
             btn_limpar = ttk.Button(btn_box, text="Limpar Campos", command=self.limpar_formulario)
             btn_limpar.pack(side=tk.LEFT, padx=5)
 
-            # --- Filtros de Busca ---
+            # --- Filtros ---
             filter_frame = ttk.LabelFrame(main_frame, text=" Filtros de Pesquisa ", padding="10")
             filter_frame.pack(fill=tk.X, pady=(0, 10))
 
@@ -226,9 +229,7 @@ def abrir_janela_quarteiroes():
             self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-            # Evento ao clicar em uma linha da tabela
             self.tree.bind("<<TreeviewSelect>>", self.ao_selecionar_item)
-
             self.carregar_dados()
 
         def carregar_dados(self):
@@ -253,7 +254,6 @@ def abrir_janela_quarteiroes():
 
                 self.id_selecionado = valores[0]
 
-                # Preenche o formulário com os dados da linha selecionada
                 self.ent_bairro.delete(0, tk.END)
                 self.ent_bairro.insert(0, valores[1])
 
