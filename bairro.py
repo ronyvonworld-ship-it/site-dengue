@@ -90,18 +90,23 @@ def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f
 
 
 def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
-    """Retorna os registros em ordem inversa de ID (do maior/mais recente para o menor)."""
+    """
+    Retorna os registros ordenados por:
+    1. Número do quarteirão
+    2. Número do lado do quarteirão
+    3. ID (em caso de empate)
+    """
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
 
     sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
     
-    # ORDEM INVERSA APLICADA AQUI (ORDER BY id DESC)
+    # ORDENAÇÃO APLICADA: num_quarteirao -> num_lado -> id
     sql = """
         SELECT id, nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel 
         FROM quarteiroes 
-    """ + sql_where + " ORDER BY id DESC"
+    """ + sql_where + " ORDER BY num_quarteirao ASC, num_lado ASC, id ASC"
 
     cursor.execute(sql, params)
     dados = cursor.fetchall()
@@ -218,7 +223,6 @@ def gerenciar_backup_db():
         if arquivo_enviado is not None:
             if st.button("⚠️ Confirmar Sobrescrita do Banco", use_container_width=True, key="btn_confirmar_upload"):
                 try:
-                    # Lê os bytes do arquivo enviado antes de tocar no arquivo do disco
                     conteudo_novo = arquivo_enviado.getvalue()
 
                     # Força a limpeza de conexões pendentes do SQLite no thread
