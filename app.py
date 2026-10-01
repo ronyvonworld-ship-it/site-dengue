@@ -2,36 +2,12 @@ import hashlib
 import os
 import sqlite3
 import pandas as pd
-import requests  # Certifique-se de ter instalado: pip install requests
 import streamlit as st
 
 import bairro
 import lancar_imovel
 
 ARQUIVO_USUARIOS = "usuarios.db"
-
-# ⚠️ Substitua pela URL direta do seu arquivo no Dropbox (com ?dl=1 no final)
-URL_DROPBOX_BAIRRO = (
-    "https://www.dropbox.com/s/SEU_LINK_AQUI/bairro.db?dl=1"  # Ou bairro.py
-)
-NOME_ARQUIVO_DESTINO = "bairro.db"  # Nome do arquivo local que será salvo/atualizado
-
-
-def baixar_do_dropbox(url: str, caminho_destino: str):
-    """Baixa um arquivo diretamente do Dropbox e salva no diretório local."""
-    try:
-        response = requests.get(url, timeout=15)
-        if response.status_code == 200:
-            with open(caminho_destino, "wb") as f:
-                f.write(response.content)
-            return True, "Arquivo baixado com sucesso do Dropbox!"
-        else:
-            return (
-                False,
-                f"Erro no download (Código HTTP: {response.status_code}). Check o link.",
-            )
-    except Exception as e:
-        return False, f"Falha na conexão ao baixar do Dropbox: {e}"
 
 
 def verificar_senha_pbkdf2(
@@ -117,17 +93,9 @@ if not st.session_state["logado"]:
                     st.session_state["usuario_atual"] = usuario_input.strip()
                     st.session_state["tipo_usuario"] = tipo
 
-                    # --- DOWNLOAD AUTOMÁTICO DO DROPBOX APÓS O LOGIN ---
-                    with st.spinner("Sincronizando dados com o Dropbox..."):
-                        dl_sucesso, dl_msg = baixar_do_dropbox(
-                            URL_DROPBOX_BAIRRO, NOME_ARQUIVO_DESTINO
-                        )
-                        if dl_sucesso:
-                            st.success("Dados sincronizados com sucesso!")
-                        else:
-                            st.warning(
-                                f"Aviso de sincronização: {dl_msg}. O sistema utilizará os dados locais."
-                            )
+                    # --- RESTAURAÇÃO VIA SDK DO DROPBOX ---
+                    with st.spinner("Sincronizando banco de dados com o Dropbox..."):
+                        bairro.carregar_db_do_dropbox()
 
                     st.rerun()
                 else:
@@ -138,17 +106,14 @@ else:
     st.sidebar.markdown(f"**Usuário:** `{st.session_state['usuario_atual']}`")
     st.sidebar.markdown(f"**Perfil:** `{st.session_state['tipo_usuario']}`")
 
-    # Botão opcional para recarregar o arquivo do Dropbox manualmente a qualquer momento
+    # Botão opcional para recarregar do Dropbox manualmente a qualquer momento
     if st.sidebar.button("🔄 Atualizar Dados do Dropbox", use_container_width=True):
         with st.spinner("Atualizando arquivo..."):
-            dl_sucesso, dl_msg = baixar_do_dropbox(
-                URL_DROPBOX_BAIRRO, NOME_ARQUIVO_DESTINO
-            )
-            if dl_sucesso:
-                st.sidebar.success(dl_msg)
-                st.rerun()
-            else:
-                st.sidebar.error(dl_msg)
+            if os.path.exists("bairro.db"):
+                os.remove("bairro.db")
+            bairro.carregar_db_do_dropbox()
+            st.sidebar.success("Sincronização concluída!")
+            st.rerun()
 
     if st.sidebar.button("Sair / Logout", use_container_width=True):
         st.session_state["logado"] = False
@@ -352,5 +317,4 @@ else:
             bairro.gerenciar_backup_db()
 
     else:
-        # Usuários que não são administradores caem aqui
         lancar_imovel.renderizar_tela_consulta()
