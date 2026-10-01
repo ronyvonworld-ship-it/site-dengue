@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import re
 import streamlit as st
 
 ARQUIVO_DB_BAIRRO = "bairro.db"
@@ -70,9 +71,14 @@ def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f
         sql_where += " AND nome_bairro LIKE ?"
         params.append(f"%{f_bairro.strip()}%")
 
+    # PERMITE MÚLTIPLOS QUARTEIRÕES SEPARADOS POR VÍRGULA OU ESPAÇO (ex: "1, 2" ou "1 2 5")
     if f_quarteirao and f_quarteirao.strip():
-        sql_where += " AND num_quarteirao LIKE ?"
-        params.append(f"%{f_quarteirao.strip()}%")
+        # Divide a string por vírgulas e/ou espaços e remove itens vazios
+        lista_q = [q.strip() for q in re.split(r'[\s,]+', f_quarteirao.strip()) if q.strip()]
+        if lista_q:
+            placeholders = ",".join(["?"] * len(lista_q))
+            sql_where += f" AND num_quarteirao IN ({placeholders})"
+            params.extend(lista_q)
 
     if f_rua and f_rua.strip():
         sql_where += " AND nome_rua LIKE ?"
@@ -102,7 +108,6 @@ def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_ti
 
     sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
     
-    # ORDENAÇÃO APLICADA: num_quarteirao -> num_lado -> id
     sql = """
         SELECT id, nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel 
         FROM quarteiroes 
