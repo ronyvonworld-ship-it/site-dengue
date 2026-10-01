@@ -1,21 +1,24 @@
-import streamlit as st
-import sqlite3
 import hashlib
 import os
+import sqlite3
 import pandas as pd
+import streamlit as st
 
 import bairro
+import lancar_imovel  # Importa o novo módulo de consulta para usuários comuns
 
 ARQUIVO_USUARIOS = "usuarios.db"
 
 
-def verificar_senha_pbkdf2(senha_digitada: str, senha_hash_hex: str, salt_hex: str) -> bool:
+def verificar_senha_pbkdf2(
+    senha_digitada: str, senha_hash_hex: str, salt_hex: str
+) -> bool:
     salt = bytes.fromhex(salt_hex)
     hash_calculado = hashlib.pbkdf2_hmac(
         hash_name="sha256",
         password=senha_digitada.encode("utf-8"),
         salt=salt,
-        iterations=100000
+        iterations=100000,
     ).hex()
     return hash_calculado == senha_hash_hex
 
@@ -29,7 +32,7 @@ def validar_login(usuario_input: str, senha_input: str):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT senha_hash, salt, tipo FROM usuarios WHERE usuario = ?",
-            (usuario_input.strip(),)
+            (usuario_input.strip(),),
         )
         resultado = cursor.fetchone()
         conn.close()
@@ -40,10 +43,14 @@ def validar_login(usuario_input: str, senha_input: str):
         senha_hash_banco, salt_banco, tipo_usuario = resultado
 
         if salt_banco and len(salt_banco) > 0:
-            if verificar_senha_pbkdf2(senha_input.strip(), senha_hash_banco, salt_banco):
+            if verificar_senha_pbkdf2(
+                senha_input.strip(), senha_hash_banco, salt_banco
+            ):
                 return True, "Login realizado com sucesso!", tipo_usuario
 
-        hash_sha256 = hashlib.sha256(senha_input.strip().encode("utf-8")).hexdigest()
+        hash_sha256 = hashlib.sha256(
+            senha_input.strip().encode("utf-8")
+        ).hexdigest()
         if hash_sha256.lower() == senha_hash_banco.lower():
             return True, "Login realizado com sucesso!", tipo_usuario
 
@@ -54,7 +61,9 @@ def validar_login(usuario_input: str, senha_input: str):
 
 
 # Configuração da página
-st.set_page_config(page_title="Sistema de Mapeamento", page_icon="📍", layout="wide")
+st.set_page_config(
+    page_title="Sistema de Mapeamento", page_icon="📍", layout="wide"
+)
 
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
@@ -99,16 +108,17 @@ else:
         st.session_state["tipo_usuario"] = ""
         st.rerun()
 
-    # --- Conteúdo Principal ---
-    st.title("📍 Mapeamento Territorial de Quarteirões")
-
+    # --- Controle de Acesso por Tipo de Usuário ---
     if st.session_state["tipo_usuario"] == "Administrador":
+        st.title("📍 Mapeamento Territorial de Quarteirões")
 
-        aba_cadastro, aba_registros, aba_backup = st.tabs([
-            "➕ Cadastrar Imóvel", 
-            "🔍 Consultar, Editar e Excluir", 
-            "💾 Backup / Restaurar DB"
-        ])
+        aba_cadastro, aba_registros, aba_backup = st.tabs(
+            [
+                "➕ Cadastrar Imóvel",
+                "🔍 Consultar, Editar e Excluir",
+                "💾 Backup / Restaurar DB",
+            ]
+        )
 
         # TAB 1: Cadastrar
         with aba_cadastro:
@@ -126,13 +136,28 @@ else:
                     imovel_num = st.text_input("Número do Imóvel")
                     tipo_imovel = st.selectbox(
                         "Tipo do Imóvel",
-                        ["Residência", "Comércio", "Terreno Baldio", "Outro"]
+                        [
+                            "Residência",
+                            "Comércio",
+                            "Terreno Baldio",
+                            "Outro",
+                        ],
                     )
 
-                btn_salvar = st.form_submit_button("Salvar Registro", use_container_width=True)
+                btn_salvar = st.form_submit_button(
+                    "Salvar Registro", use_container_width=True
+                )
 
                 if btn_salvar:
-                    if not all([bairro_nome, quarteirao_num, rua_nome, lado_num, imovel_num]):
+                    if not all(
+                        [
+                            bairro_nome,
+                            quarteirao_num,
+                            rua_nome,
+                            lado_num,
+                            imovel_num,
+                        ]
+                    ):
                         st.warning("Preencha todos os campos do formulário.")
                     else:
                         bairro.salvar_quarteirao(
@@ -141,7 +166,7 @@ else:
                             rua_nome.strip(),
                             lado_num.strip(),
                             imovel_num.strip(),
-                            tipo_imovel
+                            tipo_imovel,
                         )
                         st.success("Registro adicionado com sucesso!")
 
@@ -152,34 +177,60 @@ else:
             col_f1, col_f2, col_f3 = st.columns(3)
             with col_f1:
                 f_bairro = st.text_input("Filtrar por Bairro", key="f_bairro")
-                f_quarteirao = st.text_input("Filtrar por Nº Quarteirão", key="f_quarteirao")
+                f_quarteirao = st.text_input(
+                    "Filtrar por Nº Quarteirão", key="f_quarteirao"
+                )
             with col_f2:
                 f_rua = st.text_input("Filtrar por Rua", key="f_rua")
                 f_imovel = st.text_input("Filtrar por Nº Imóvel", key="f_imovel")
             with col_f3:
-                f_tipo = st.selectbox("Filtrar por Tipo", ["Todos", "Residência", "Comércio", "Terreno Baldio", "Outro"], key="f_tipo")
+                f_tipo = st.selectbox(
+                    "Filtrar por Tipo",
+                    [
+                        "Todos",
+                        "Residência",
+                        "Comércio",
+                        "Terreno Baldio",
+                        "Outro",
+                    ],
+                    key="f_tipo",
+                )
 
-            # Busca filtrada e resumo
-            dados = bairro.listar_quarteiroes(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
-            total_imoveis, detalhe_tipos = bairro.obter_resumo_filtros(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
+            dados = bairro.listar_quarteiroes(
+                f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
+            )
+            total_imoveis, detalhe_tipos = bairro.obter_resumo_filtros(
+                f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
+            )
 
             st.markdown("---")
-            
-            # --- PAINEL DE SOMA DOS IMÓVEIS FILTRADOS ---
             st.subheader("📊 Resumo dos Filtros Aplicados")
             m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
-            
+
             m_col1.metric("Total de Imóveis", total_imoveis)
             m_col2.metric("Residências", detalhe_tipos.get("Residência", 0))
             m_col3.metric("Comércios", detalhe_tipos.get("Comércio", 0))
-            m_col4.metric("Terrenos Baldios", detalhe_tipos.get("Terreno Baldio", 0))
+            m_col4.metric(
+                "Terrenos Baldios", detalhe_tipos.get("Terreno Baldio", 0)
+            )
             m_col5.metric("Outros", detalhe_tipos.get("Outro", 0))
 
             st.markdown("---")
             st.subheader(f"Lista de Registros ({len(dados)})")
 
             if dados:
-                df = pd.DataFrame(dados, columns=["ID", "Bairro", "Quarteirão", "Rua", "Lado", "Nº Imóvel", "Tipo"])
+                df = pd.DataFrame(
+                    dados,
+                    columns=[
+                        "ID",
+                        "Bairro",
+                        "Quarteirão",
+                        "Rua",
+                        "Lado",
+                        "Nº Imóvel",
+                        "Tipo",
+                    ],
+                )
                 st.dataframe(df, use_container_width=True, hide_index=True)
 
                 st.markdown("---")
@@ -192,40 +243,66 @@ else:
 
                 imovel_selecionado_str = st.selectbox(
                     "Selecione um imóvel filtrado para alterar ou excluir:",
-                    options=list(opcoes_imoveis.keys())
+                    options=list(opcoes_imoveis.keys()),
                 )
 
                 reg = opcoes_imoveis[imovel_selecionado_str]
                 id_sel = reg[0]
 
                 st.markdown(f"**Modificando Registro ID `{id_sel}`**")
-                
-                # Campos para alteração
+
                 col_e1, col_e2 = st.columns(2)
                 with col_e1:
-                    ebairro = st.text_input("Bairro", value=str(reg[1]), key=f"eb_{id_sel}")
-                    equarteirao = st.text_input("Nº Quarteirão", value=str(reg[2]), key=f"eq_{id_sel}")
-                    erua = st.text_input("Rua", value=str(reg[3]), key=f"er_{id_sel}")
+                    ebairro = st.text_input(
+                        "Bairro", value=str(reg[1]), key=f"eb_{id_sel}"
+                    )
+                    equarteirao = st.text_input(
+                        "Nº Quarteirão", value=str(reg[2]), key=f"eq_{id_sel}"
+                    )
+                    erua = st.text_input(
+                        "Rua", value=str(reg[3]), key=f"er_{id_sel}"
+                    )
                 with col_e2:
-                    elado = st.text_input("Nº Lado", value=str(reg[4]), key=f"el_{id_sel}")
-                    eimovel = st.text_input("Nº Imóvel", value=str(reg[5]), key=f"ei_{id_sel}")
-                    
-                    tipos_validos = ["Residência", "Comércio", "Terreno Baldio", "Outro"]
-                    idx_tipo = tipos_validos.index(reg[6]) if reg[6] in tipos_validos else 0
-                    etipo = st.selectbox("Tipo de Imóvel", tipos_validos, index=idx_tipo, key=f"et_{id_sel}")
+                    elado = st.text_input(
+                        "Nº Lado", value=str(reg[4]), key=f"el_{id_sel}"
+                    )
+                    eimovel = st.text_input(
+                        "Nº Imóvel", value=str(reg[5]), key=f"ei_{id_sel}"
+                    )
+
+                    tipos_validos = [
+                        "Residência",
+                        "Comércio",
+                        "Terreno Baldio",
+                        "Outro",
+                    ]
+                    idx_tipo = (
+                        tipos_validos.index(reg[6])
+                        if reg[6] in tipos_validos
+                        else 0
+                    )
+                    etipo = st.selectbox(
+                        "Tipo de Imóvel",
+                        tipos_validos,
+                        index=idx_tipo,
+                        key=f"et_{id_sel}",
+                    )
 
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
-                    bairro.confirmar_e_atualizar(id_sel, ebairro, equarteirao, erua, elado, eimovel, etipo)
+                    bairro.confirmar_e_atualizar(
+                        id_sel, ebairro, equarteirao, erua, elado, eimovel, etipo
+                    )
                 with col_btn2:
                     bairro.confirmar_e_excluir(id_sel)
 
             else:
                 st.info("Nenhum imóvel corresponde aos filtros selecionados.")
 
-        # TAB 3: Backup / Restaurar DB
+        # TAB 3: Backup
         with aba_backup:
             bairro.gerenciar_backup_db()
 
     else:
-        st.warning("Seu perfil de usuário não possui permissão de acesso.")
+        # Se for qualquer outro tipo de usuário existente na base (ex: "Operador", "Usuário", etc.)
+        lancar_imovel.renderizar_tela_consulta()
