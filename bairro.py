@@ -2,12 +2,90 @@ import sqlite3
 import os
 import re
 import streamlit as st
+import dropbox
+from dropbox.exceptions import ApiError
 
+# --- CONFIGURAÇÕES DE BANCO DE DADOS E DROPBOX ---
 ARQUIVO_DB_BAIRRO = "bairro.db"
+CAMINHO_DROPBOX = "/bairro.db"
 
+# Credenciais do Dropbox
+DROPBOX_APP_KEY = st.secrets.get("DROPBOX_APP_KEY", "q0viamdueua22be")
+DROPBOX_APP_SECRET = st.secrets.get("DROPBOX_APP_SECRET", "mz2eaymu9r0jrop")
+DROPBOX_REFRESH_TOKEN = st.secrets.get("DROPBOX_REFRESH_TOKEN", "VHxefblYYMcAAAAAAAAAAXo_fNemEsw_A-sP0lEh3C2YB2kphW9rTfdB6d_sTe5B")
+
+
+# --- FUNÇÕES DE CONEXÃO E SINCRONIZAÇÃO COM REFRESH TOKEN ---
+
+def obter_cliente_dropbox():
+    """
+    Retorna uma instância autenticada da API do Dropbox utilizando
+    Refresh Token para renovação automática do token de acesso.
+    """
+    try:
+        dbx = dropbox.Dropbox(
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN
+        )
+        return dbx
+    except Exception as e:
+        st.error(f"❌ Falha ao conectar à API do Dropbox: {e}")
+        return None
+
+
+def carregar_db_do_dropbox():
+    """Baixa o banco de dados do Dropbox caso ele ainda não exista localmente (ao sair da hibernação)."""
+    db_cliente = obter_cliente_dropbox()
+    if not db_cliente:
+        return
+
+    # Se o arquivo local não existir (ex: pós-hibernação), faz o download do Dropbox
+    if not os.path.exists(ARQUIVO_DB_BAIRRO):
+        try:
+            _, resposta = db_cliente.files_download(CAMINHO_DROPBOX)
+            with open(ARQUIVO_DB_BAIRRO, "wb") as f:
+                f.write(resposta.content)
+            st.toast("📥 Banco de dados restaurado do Dropbox com sucesso!", icon="🔄")
+        except ApiError as err:
+            # Caso o arquivo ainda não exista no repositório do Dropbox
+            st.warning("⚠️ Arquivo 'bairro.db' não encontrado na nuvem. Um novo banco local será criado.")
+        except Exception as e:
+            st.error(f"❌ Erro ao restaurar banco do Dropbox: {e}")
+
+
+def enviar_db_para_dropbox():
+    """Sobe a versão atualizada do banco de dados local para o Dropbox."""
+    db_cliente = obter_cliente_dropbox()
+    if not db_cliente:
+        return False
+
+    if os.path.exists(ARQUIVO_DB_BAIRRO):
+        try:
+            with open(ARQUIVO_DB_BAIRRO, "rb") as f:
+                # Mode overwrite garante que a versão antiga na nuvem seja substituída
+                db_cliente.files_upload(
+                    f.read(),
+                    CAMINHO_DROPBOX,
+                    mode=dropbox.files.WriteMode.overwrite
+                )
+            st.toast("☁️ Alterações salvas no Dropbox!", icon="✅")
+            return True
+        except Exception as e:
+            st.error(f"❌ Erro ao enviar banco de dados para o Dropbox: {e}")
+            return False
+    return False
+
+
+# --- INICIALIZAÇÃO DO BANCO ---
 
 def init_db_bairro():
-    """Cria a tabela de quarteirões/imóveis caso ela não exista."""
+    """Sincroniza na inicialização e cria a tabela caso não exista."""
+    # Garante que ao reiniciar o app (pós-hibernação), tente buscar o banco mais recente do Dropbox
+    if "db_sincronizado_inicio" not in st.session_state:
+        carregar_db_do_dropbox()
+        st.session_state["db_sincronizado_inicio"] = True
+
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
     cursor.execute("""
@@ -25,8 +103,10 @@ def init_db_bairro():
     conn.close()
 
 
+# --- OPERAÇÕES CRUD COM AUTOSAVE NO DROPBOX ---
+
 def salvar_quarteirao(bairro, quarteirao, rua, lado, imovel, tipo):
-    """Insere um novo imóvel no banco de dados."""
+    """Insere um novo imóvel no banco de dados e sincroniza no Dropbox."""
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
@@ -37,9 +117,12 @@ def salvar_quarteirao(bairro, quarteirao, rua, lado, imovel, tipo):
     conn.commit()
     conn.close()
 
+    # Envia para a nuvem
+    enviar_db_para_dropbox()
+
 
 def atualizar_quarteirao(id_reg, bairro, quarteirao, rua, lado, imovel, tipo):
-    """Atualiza as informações de um imóvel existente pelo ID."""
+    """Atualiza as informações de um imóvel e sincroniza no Dropbox."""
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
@@ -51,9 +134,12 @@ def atualizar_quarteirao(id_reg, bairro, quarteirao, rua, lado, imovel, tipo):
     conn.commit()
     conn.close()
 
+    # Envia para a nuvem
+    enviar_db_para_dropbox()
+
 
 def excluir_quarteirao(id_reg):
-    """Remove um registro pelo ID."""
+    """Remove um registro pelo ID e sincroniza no Dropbox."""
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
@@ -61,9 +147,14 @@ def excluir_quarteirao(id_reg):
     conn.commit()
     conn.close()
 
+    # Envia para a nuvem
+    enviar_db_para_dropbox()
+
+
+# --- CONSULTAS SQL ---
 
 def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
-    """Função auxiliar para construir a instrução WHERE com base nos filtros."""
+    """Função auxiliar para construir a instrução WHERE com suporte a múltiplos quarteirões."""
     sql_where = " WHERE 1=1"
     params = []
 
@@ -71,9 +162,7 @@ def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f
         sql_where += " AND nome_bairro LIKE ?"
         params.append(f"%{f_bairro.strip()}%")
 
-    # PERMITE MÚLTIPLOS QUARTEIRÕES SEPARADOS POR VÍRGULA OU ESPAÇO (ex: "1, 2" ou "1 2 5")
     if f_quarteirao and f_quarteirao.strip():
-        # Divide a string por vírgulas e/ou espaços e remove itens vazios
         lista_q = [q.strip() for q in re.split(r'[\s,]+', f_quarteirao.strip()) if q.strip()]
         if lista_q:
             placeholders = ",".join(["?"] * len(lista_q))
@@ -96,12 +185,7 @@ def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f
 
 
 def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
-    """
-    Retorna os registros ordenados por:
-    1. Número do quarteirão
-    2. Número do lado do quarteirão
-    3. ID (em caso de empate)
-    """
+    """Retorna os registros ordenados por quarteirão, lado e ID."""
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
@@ -139,7 +223,7 @@ def obter_resumo_filtros(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_
     return total_imoveis, por_tipo
 
 
-# --- FUNÇÕES DE INTERFACE COM CONFIRMAÇÃO ---
+# --- INTERFACE COM CONFIRMAÇÃO ---
 
 def confirmar_e_atualizar(id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val):
     """Exibe a caixa de confirmação para edição dentro do módulo bairro."""
@@ -191,7 +275,7 @@ def confirmar_e_excluir(id_sel):
                 st.rerun()
 
 
-# --- FUNÇÕES DE DOWNLOAD E UPLOAD DO BANCO DE DADOS ---
+# --- BACKUP LOCAL & RESTAURAÇÃO MANUAL ---
 
 def obter_bytes_db():
     """Garante que o banco existe e retorna os bytes do arquivo para download."""
@@ -203,42 +287,26 @@ def obter_bytes_db():
 
 
 def gerenciar_backup_db():
-    """Renderiza os botões de Download e Upload para gerenciamento do arquivo .db."""
-    st.subheader("💾 Backup e Restauração do Banco de Dados (`bairro.db`)")
+    """Renderiza os botões de gerenciamento local e sincronização manual com a nuvem."""
+    st.subheader("💾 Backup e Sincronização (`bairro.db`)")
     
-    col_down, col_up = st.columns(2)
+    col_down, col_sync = st.columns(2)
 
-    # Download do arquivo DB
     with col_down:
-        st.markdown("**1. Baixar cópia do banco de dados**")
+        st.markdown("**1. Baixar cópia local do banco**")
         bytes_db = obter_bytes_db()
         st.download_button(
-            label="⬇️ Baixar bairro.db",
+            label="⬇️️ Baixar bairro.db local",
             data=bytes_db,
             file_name="bairro.db",
             mime="application/x-sqlite3",
             use_container_width=True
         )
 
-    # Upload e substituição do arquivo DB com tratamento de bloqueio e substituição segura
-    with col_up:
-        st.markdown("**2. Restaurar/Substituir banco de dados**")
-        arquivo_enviado = st.file_uploader("Selecione um arquivo .db", type=["db", "sqlite3", "sqlite"], key="uploader_db")
-
-        if arquivo_enviado is not None:
-            if st.button("⚠️ Confirmar Sobrescrita do Banco", use_container_width=True, key="btn_confirmar_upload"):
-                try:
-                    conteudo_novo = arquivo_enviado.getvalue()
-
-                    # Força a limpeza de conexões pendentes do SQLite no thread
-                    sqlite3.connect(ARQUIVO_DB_BAIRRO).close()
-
-                    # Sobrescreve o arquivo
-                    with open(ARQUIVO_DB_BAIRRO, "wb") as f:
-                        f.write(conteudo_novo)
-
-                    st.cache_data.clear()
-                    st.success("Banco de dados substituído com sucesso!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao salvar arquivo: {e}")
+    with col_sync:
+        st.markdown("**2. Forçar sincronização com o Dropbox**")
+        if st.button("🔄 Restaurar dados da nuvem agora", use_container_width=True):
+            if os.path.exists(ARQUIVO_DB_BAIRRO):
+                os.remove(ARQUIVO_DB_BAIRRO)
+            carregar_db_do_dropbox()
+            st.rerun()
