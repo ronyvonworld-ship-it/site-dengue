@@ -90,12 +90,14 @@ def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f
 
 
 def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
-    """Retorna apenas os registros que satisfazem TODOS os filtros fornecidos."""
+    """Retorna os registros em ordem inversa de ID (do maior/mais recente para o menor)."""
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
 
     sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
+    
+    # ORDEM INVERSA APLICADA AQUI (ORDER BY id DESC)
     sql = """
         SELECT id, nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel 
         FROM quarteiroes 
@@ -208,16 +210,25 @@ def gerenciar_backup_db():
             use_container_width=True
         )
 
-    # Upload e substituição do arquivo DB
+    # Upload e substituição do arquivo DB com tratamento de bloqueio e substituição segura
     with col_up:
         st.markdown("**2. Restaurar/Substituir banco de dados**")
-        arquivo_enviado = st.file_uploader("Selecione um arquivo .db", type=["db", "sqlite3", "sqlite"])
+        arquivo_enviado = st.file_uploader("Selecione um arquivo .db", type=["db", "sqlite3", "sqlite"], key="uploader_db")
 
         if arquivo_enviado is not None:
-            if st.button("⚠️ Confirmar Sobrescrita do Banco", use_container_width=True):
+            if st.button("⚠️ Confirmar Sobrescrita do Banco", use_container_width=True, key="btn_confirmar_upload"):
                 try:
+                    # Lê os bytes do arquivo enviado antes de tocar no arquivo do disco
+                    conteudo_novo = arquivo_enviado.getvalue()
+
+                    # Força a limpeza de conexões pendentes do SQLite no thread
+                    sqlite3.connect(ARQUIVO_DB_BAIRRO).close()
+
+                    # Sobrescreve o arquivo
                     with open(ARQUIVO_DB_BAIRRO, "wb") as f:
-                        f.write(arquivo_enviado.getbuffer())
+                        f.write(conteudo_novo)
+
+                    st.cache_data.clear()
                     st.success("Banco de dados substituído com sucesso!")
                     st.rerun()
                 except Exception as e:
