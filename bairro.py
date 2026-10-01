@@ -48,7 +48,6 @@ def carregar_db_do_dropbox():
                 f.write(resposta.content)
             st.toast("📥 Banco de dados restaurado do Dropbox com sucesso!", icon="🔄")
         except ApiError as err:
-            # Caso o arquivo ainda não exista no repositório do Dropbox
             st.warning("⚠️ Arquivo 'bairro.db' não encontrado na nuvem. Um novo banco local será criado.")
         except Exception as e:
             st.error(f"❌ Erro ao restaurar banco do Dropbox: {e}")
@@ -69,7 +68,7 @@ def enviar_db_para_dropbox():
                     CAMINHO_DROPBOX,
                     mode=dropbox.files.WriteMode.overwrite
                 )
-            st.toast("☁️ Alterações salvas no Dropbox!", icon="✅")
+            st.toast("☁️️ Alterações salvas no Dropbox!", icon="✅")
             return True
         except Exception as e:
             st.error(f"❌ Erro ao enviar banco de dados para o Dropbox: {e}")
@@ -81,7 +80,6 @@ def enviar_db_para_dropbox():
 
 def init_db_bairro():
     """Sincroniza na inicialização e cria a tabela caso não exista."""
-    # Garante que ao reiniciar o app (pós-hibernação), tente buscar o banco mais recente do Dropbox
     if "db_sincronizado_inicio" not in st.session_state:
         carregar_db_do_dropbox()
         st.session_state["db_sincronizado_inicio"] = True
@@ -117,7 +115,6 @@ def salvar_quarteirao(bairro, quarteirao, rua, lado, imovel, tipo):
     conn.commit()
     conn.close()
 
-    # Envia para a nuvem
     enviar_db_para_dropbox()
 
 
@@ -134,7 +131,6 @@ def atualizar_quarteirao(id_reg, bairro, quarteirao, rua, lado, imovel, tipo):
     conn.commit()
     conn.close()
 
-    # Envia para a nuvem
     enviar_db_para_dropbox()
 
 
@@ -147,7 +143,6 @@ def excluir_quarteirao(id_reg):
     conn.commit()
     conn.close()
 
-    # Envia para a nuvem
     enviar_db_para_dropbox()
 
 
@@ -275,7 +270,7 @@ def confirmar_e_excluir(id_sel):
                 st.rerun()
 
 
-# --- BACKUP LOCAL & RESTAURAÇÃO MANUAL ---
+# --- BACKUP LOCAL & RESTAURAÇÃO MANUAL / UPLOAD ---
 
 def obter_bytes_db():
     """Garante que o banco existe e retorna os bytes do arquivo para download."""
@@ -287,25 +282,49 @@ def obter_bytes_db():
 
 
 def gerenciar_backup_db():
-    """Renderiza os botões de gerenciamento local e sincronização manual com a nuvem."""
+    """Renderiza os botões de gerenciamento local, upload de arquivo e sincronização manual."""
     st.subheader("💾 Backup e Sincronização (`bairro.db`)")
     
-    col_down, col_sync = st.columns(2)
+    col_down, col_up, col_sync = st.columns(3)
 
+    # 1. Download do banco local
     with col_down:
-        st.markdown("**1. Baixar cópia local do banco**")
+        st.markdown("**1. Baixar banco local**")
         bytes_db = obter_bytes_db()
         st.download_button(
-            label="⬇️️ Baixar bairro.db local",
+            label="⬇️ Baixar bairro.db",
             data=bytes_db,
             file_name="bairro.db",
             mime="application/x-sqlite3",
             use_container_width=True
         )
 
+    # 2. Upload de banco do computador
+    with col_up:
+        st.markdown("**2. Enviar arquivo do computador**")
+        arquivo_enviado = st.file_uploader(
+            "Selecione um arquivo .db local",
+            type=["db", "sqlite", "sqlite3"],
+            key="uploader_db_bairro",
+            label_visibility="collapsed"
+        )
+        if arquivo_enviado is not None:
+            if st.button("⬆️ Restaurar/Substituir via Upload", use_container_width=True):
+                try:
+                    with open(ARQUIVO_DB_BAIRRO, "wb") as f:
+                        f.write(arquivo_enviado.getbuffer())
+                    
+                    # Sincroniza o novo banco enviado para a nuvem Dropbox
+                    enviar_db_para_dropbox()
+                    st.success("✅ Banco de dados atualizado e enviado para o Dropbox com sucesso!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro ao salvar o arquivo enviado: {e}")
+
+    # 3. Forçar restauração via Dropbox
     with col_sync:
-        st.markdown("**2. Forçar sincronização com o Dropbox**")
-        if st.button("🔄 Restaurar dados da nuvem agora", use_container_width=True):
+        st.markdown("**3. Sincronizar via Dropbox**")
+        if st.button("🔄 Restaurar da Nuvem", use_container_width=True):
             if os.path.exists(ARQUIVO_DB_BAIRRO):
                 os.remove(ARQUIVO_DB_BAIRRO)
             carregar_db_do_dropbox()
