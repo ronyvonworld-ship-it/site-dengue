@@ -347,12 +347,19 @@ else:
             else:
                 resumo = bairro.obter_resumo_por_datas(data_inicio, data_fim)
 
-                st.markdown("##### 📍 Imóveis Lançados no Período")
+                st.markdown("##### 📍 Situação dos Imóveis Lançados")
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Total Lançados", resumo["total_lancados"])
                 m2.metric("Normal 🟩", resumo["total_normal"])
                 m3.metric("Fechado 🟥", resumo["total_fechado"])
                 m4.metric("Recuperado 🟩", resumo["total_recuperado"])
+
+                st.markdown("##### 🏠 Detalhamento por Tipo de Imóvel")
+                t1, t2, t3, t4 = st.columns(4)
+                t1.metric("Residências", resumo["total_residencia"])
+                t2.metric("Comércios", resumo["total_comercio"])
+                t3.metric("Terrenos Baldios", resumo["total_terreno"])
+                t4.metric("Outros", resumo["total_outro"])
 
                 st.markdown("##### 🧪 Depósitos e Medicamentos")
                 m5, m6, m7 = st.columns(3)
