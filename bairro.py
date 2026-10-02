@@ -135,7 +135,7 @@ def enviar_diario_dropbox():
                     CAMINHO_DROPBOX_DIARIO,
                     mode=dropbox.files.WriteMode.overwrite
                 )
-            st.toast("☁️ Diário sincronizado com o Dropbox!", icon="✅")
+            st.toast("☁️️ Diário sincronizado com o Dropbox!", icon="✅")
             return True
         except Exception as e:
             st.error(f"❌ Erro ao enviar diario.db para o Dropbox: {e}")
@@ -449,9 +449,9 @@ def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
         total_fechado = row[2] or 0
         total_recuperado = row[3] or 0
 
-        # Novos cálculos solicitados
+        # Novos cálculos solicitados (Imóveis informados = normais + fechados)
         casas_trabalhadas = total_normal + total_recuperado
-        casas_informadas = total_normal + total_fechado - total_recuperado
+        casas_informadas = total_normal + total_fechado
 
         return {
             "total_lancados": row[0] or 0,
@@ -603,7 +603,7 @@ def gerenciar_backup_db():
         st.markdown("**1. Baixar bairro.db**")
         bytes_db = obter_bytes_db()
         st.download_button(
-            label="⬇️ Baixar bairro.db",
+            label="⬇️️ Baixar bairro.db",
             data=bytes_db,
             file_name="bairro.db",
             mime="application/x-sqlite3",
