@@ -1,11 +1,22 @@
 # lancar_imovel.py
-import streamlit as st
 import pandas as pd
+import streamlit as st
+
 import bairro
 
 
 def renderizar_tela_consulta():
     st.title("📍 Mapeamento Territorial - Consulta de Quarteirões")
+
+    # Tenta baixar/sincronizar o arquivo DB do Dropbox antes de carregar a tela
+    try:
+        if hasattr(bairro, "sincronizar_banco"):
+            bairro.sincronizar_banco()
+        elif hasattr(bairro, "baixar_banco_dropbox"):
+            bairro.baixar_banco_dropbox()
+    except Exception as e:
+        st.warning(f"⚠️ Não foi possível sincronizar com o Dropbox: {e}")
+
     st.markdown("---")
 
     st.subheader("🔍 Filtros de Pesquisa")
