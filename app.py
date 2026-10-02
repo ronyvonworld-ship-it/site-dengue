@@ -104,7 +104,6 @@ if not st.session_state["logado"]:
 
 # --- ÁREA LOGADA ---
 else:
-    # Executa a restauração do Dropbox uma única vez logo após o login
     if st.session_state.get("precisa_carregar_db", False):
         with st.spinner("Sincronizando banco de dados com o Dropbox..."):
             try:
@@ -326,9 +325,10 @@ else:
 
         # TAB 3: Resumo & Conclusão de Quarteirão
         with aba_resumo_admin:
-            st.subheader("📊 Resumo de Lançamentos e Status por Período")
+            st.subheader("📊 Resumo de Lançamentos por Período e Agente")
 
-            col_d1, col_d2 = st.columns(2)
+            # Filtros do Período e Agente
+            col_d1, col_d2, col_d3 = st.columns(3)
             with col_d1:
                 data_inicio = st.date_input(
                     "Data Inicial",
@@ -341,13 +341,20 @@ else:
                     value=datetime.date.today(),
                     key="admin_d_fim",
                 )
+            with col_d3:
+                lista_agentes = ["Todos (Total Geral)"] + bairro.obter_lista_agentes()
+                agente_selecionado = st.selectbox(
+                    "Filtrar por Agente / Usuário",
+                    options=lista_agentes,
+                    key="admin_agente_sel",
+                )
 
             if data_inicio > data_fim:
                 st.error("⚠️ A data inicial não pode ser posterior à data final.")
             else:
-                resumo = bairro.obter_resumo_por_datas(data_inicio, data_fim)
+                resumo = bairro.obter_resumo_por_datas(data_inicio, data_fim, usuario=agente_selecionado)
 
-                st.markdown("##### 📍 Situação dos Imóveis Lançados")
+                st.markdown(f"##### 📍 Situação dos Imóveis Lançados ({agente_selecionado})")
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Total Lançados", resumo["total_lancados"])
                 m2.metric("Normal 🟩", resumo["total_normal"])
