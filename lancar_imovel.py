@@ -46,7 +46,7 @@ def renderizar_tela_consulta():
             dt_fim_user = st.date_input("Data Final", value=datetime.date.today(), key="u_dt_fim")
 
         if dt_inicio_user > dt_fim_user:
-            st.error("⚠️️ A data inicial não pode ser maior que a data final.")
+            st.error("⚠️ A data inicial não pode ser maior que a data final.")
         else:
             resumo_u = bairro.obter_resumo_por_usuario_e_datas(usuario_logado, dt_inicio_user, dt_fim_user)
 
@@ -231,7 +231,6 @@ def renderizar_tela_consulta():
                     if st.button(
                         "💾 Salvar Lançamento no Diário",
                         type="primary",
-                        use_container_width=True,
                         key=f"btn_salvar_{id_imovel}",
                     ):
                         if (
