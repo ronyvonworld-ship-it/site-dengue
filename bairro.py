@@ -19,7 +19,26 @@ DROPBOX_APP_SECRET = st.secrets.get("DROPBOX_APP_SECRET", "")
 DROPBOX_REFRESH_TOKEN = st.secrets.get("DROPBOX_REFRESH_TOKEN", "")
 
 
-# --- CONEXÃO E DROPBOX ---
+# --- FUNÇÃO DE ESTILIZAÇÃO VISUAL ---
+
+def colorir_linha_por_situacao(row):
+    """
+    Aplica as cores padrão para exibição dos imóveis:
+    - Verde: 'Normal' ou 'Recuperado'
+    - Vermelho: 'Fechado'
+    - Branco/Padrão: Sem lançamento no ciclo atual
+    """
+    situacao = row.get("Status Ciclo") if "Status Ciclo" in row else row.get("status_ciclo")
+
+    if situacao in ["Normal", "Recuperado"]:
+        return ["background-color: #d4edda; color: #155724; font-weight: bold;"] * len(row)
+    elif situacao == "Fechado":
+        return ["background-color: #f8d7da; color: #721c24; font-weight: bold;"] * len(row)
+    else:
+        return [""] * len(row)
+
+
+# --- CONEXÃO DROPBOX ---
 
 def obter_cliente_dropbox():
     if not all([DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN]):
@@ -262,7 +281,7 @@ def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_ti
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
     sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
-    sql = "SELECT id, nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel FROM quarteiroes q" + sql_where + " ORDER BY num_quarteirao ASC, num_lado ASC, id ASC"
+    sql = "SELECT id, nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel FROM quarteiroes q" + sql_where + " ORDER BY CAST(q.num_quarteirao AS INTEGER) ASC, q.num_lado ASC, q.id ASC"
     cursor.execute(sql, params)
     dados = cursor.fetchall()
     conn.close()
@@ -327,7 +346,7 @@ def obter_resumo_filtros(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_
     return total_imoveis, por_tipo
 
 
-# --- RESUMO POR DATAS E VERIFICAÇÃO DE QUARTEIRÃO (ADMIN) ---
+# --- RESUMO POR DATAS E STATUS DOS QUARTEIRÕES POR BAIRRO (ADMIN) ---
 
 def obter_resumo_por_datas(data_inicio, data_fim):
     inicializar_diario_db()
@@ -372,7 +391,11 @@ def obter_resumo_por_datas(data_inicio, data_fim):
     }
 
 
-def verificar_status_quarteirao(bairro_nome, quarteirao_num):
+def listar_status_quarteiroes_por_bairro(bairro_nome):
+    """
+    Pesquisa APENAS pelo nome do Bairro e retorna a lista de TODOS os quarteirões
+    com a contagem de imóveis cadastrados, lançados e o status (CONCLUÍDO / INCOMPLETO).
+    """
     init_db_bairro()
     inicializar_diario_db()
 
@@ -381,33 +404,39 @@ def verificar_status_quarteirao(bairro_nome, quarteirao_num):
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
 
-    # Total de imóveis cadastrados
-    cursor.execute("""
-        SELECT COUNT(*) FROM quarteiroes 
-        WHERE LOWER(nome_bairro) = LOWER(?) AND LOWER(num_quarteirao) = LOWER(?)
-    """, (bairro_nome.strip(), quarteirao_num.strip()))
-    total_cadastrados = cursor.fetchone()[0]
-
-    if total_cadastrados == 0:
-        conn.close()
-        return False, 0, 0
-
-    # Lançamentos no ciclo atual
     cursor.execute(f"ATTACH DATABASE '{ARQUIVO_DIARIO_DB}' AS db_diario")
-    cursor.execute(f"""
-        SELECT COUNT(DISTINCT q.id) 
+
+    query = f"""
+        SELECT 
+            q.num_quarteirao,
+            COUNT(q.id) AS total_imoveis,
+            COUNT(DISTINCT d.imovel_id) AS total_lancados
         FROM quarteiroes q
-        INNER JOIN db_diario.diario d ON q.id = d.imovel_id
-        WHERE LOWER(q.nome_bairro) = LOWER(?) 
-          AND LOWER(q.num_quarteirao) = LOWER(?)
-          AND d.data_registro BETWEEN '{data_inicio}' AND '{data_fim}'
-    """, (bairro_nome.strip(), quarteirao_num.strip()))
-    
-    total_lancados = cursor.fetchone()[0]
+        LEFT JOIN db_diario.diario d 
+            ON q.id = d.imovel_id 
+           AND d.data_registro BETWEEN '{data_inicio}' AND '{data_fim}'
+        WHERE LOWER(q.nome_bairro) LIKE LOWER(?)
+        GROUP BY q.num_quarteirao
+        ORDER BY CAST(q.num_quarteirao AS INTEGER) ASC
+    """
+
+    cursor.execute(query, (f"%{bairro_nome.strip()}%",))
+    registros = cursor.fetchall()
     conn.close()
 
-    concluido = total_lancados >= total_cadastrados
-    return concluido, total_lancados, total_cadastrados
+    resultado = []
+    for q_num, total, lancados in registros:
+        concluido = (lancados >= total) and (total > 0)
+        status_txt = "✅ CONCLUÍDO" if concluido else "❌ INCOMPLETO"
+        resultado.append({
+            "Quarteirão": q_num,
+            "Total Imóveis": total,
+            "Imóveis Visitados": lancados,
+            "Pendentes": max(0, total - lancados),
+            "Status": status_txt
+        })
+
+    return resultado
 
 
 # --- RECURSOS AUXILIARES ---
