@@ -51,11 +51,13 @@ def renderizar_tela_consulta():
             resumo_u = bairro.obter_resumo_por_usuario_e_datas(usuario_logado, dt_inicio_user, dt_fim_user)
 
             st.markdown("##### 📍 Imóveis Vistoriados")
-            m1, m2, m3, m4 = st.columns(4)
+            m1, m2, m3, m4, m5, m6 = st.columns(6)
             m1.metric("Total Lançados", resumo_u["total_lancados"])
             m2.metric("Normal 🟩", resumo_u["total_normal"])
             m3.metric("Fechado 🟥", resumo_u["total_fechado"])
             m4.metric("Recuperado 🟩", resumo_u["total_recuperado"])
+            m5.metric("Casas Trabalhadas", resumo_u["casas_trabalhadas"])
+            m6.metric("Casas Informadas", resumo_u["casas_informadas"])
 
             st.markdown("##### 🏠 Vistorias por Tipo de Imóvel")
             t1, t2, t3, t4 = st.columns(4)
