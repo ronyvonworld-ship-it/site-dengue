@@ -191,13 +191,15 @@ def renderizar_tela_consulta():
                         col_dep1, col_dep2 = st.columns(2)
 
                         with col_dep1:
-                            depositos_eliminados = st.number_input(
+                            val_elim = st.number_input(
                                 "Depósitos Eliminados",
                                 min_value=0,
                                 step=1,
-                                value=0,
+                                value=None,
+                                placeholder="Digite a quantidade...",
                                 key=f"dep_elim_{id_imovel}",
                             )
+                            depositos_eliminados = int(val_elim) if val_elim is not None else 0
 
                         with col_dep2:
                             fez_tratamento = st.selectbox(
@@ -209,23 +211,29 @@ def renderizar_tela_consulta():
                         if fez_tratamento == "Sim":
                             col_trat1, col_trat2 = st.columns(2)
                             with col_trat1:
-                                depositos_tratados = st.number_input(
+                                max_v = max(depositos_eliminados, 0)
+                                val_trat = st.number_input(
                                     f"Depósitos Tratados (Máx: {depositos_eliminados})",
                                     min_value=0,
-                                    max_value=max(depositos_eliminados, 0),
+                                    max_value=max_v if max_v > 0 else None,
                                     step=1,
-                                    value=min(1, depositos_eliminados) if depositos_eliminados > 0 else 0,
+                                    value=None,
+                                    placeholder="Digite...",
                                     key=f"dep_trat_{id_imovel}",
                                 )
+                                depositos_tratados = int(val_trat) if val_trat is not None else 0
 
                             with col_trat2:
-                                gramas_medicamento = st.number_input(
+                                val_gramas = st.number_input(
                                     "Quantidade de Medicamento Utilizado (g)",
                                     min_value=0.0,
                                     step=0.5,
                                     format="%.2f",
+                                    value=None,
+                                    placeholder="Ex: 5.5",
                                     key=f"gramas_{id_imovel}",
                                 )
+                                gramas_medicamento = float(val_gramas) if val_gramas is not None else 0.0
 
                     st.markdown(" ")
                     if st.button(
