@@ -114,7 +114,6 @@ def inicializar_diario_db():
             data_registro DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # Garante que a coluna usuario exista caso o banco tenha sido criado anteriormente sem ela
     try:
         cursor.execute("ALTER TABLE diario ADD COLUMN usuario TEXT DEFAULT ''")
     except sqlite3.OperationalError:
@@ -347,120 +346,87 @@ def obter_resumo_filtros(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_
     return total_imoveis, por_tipo
 
 
-# --- RESUMO POR USUARIO E POR DATAS ---
+# --- RESUMO POR AGENTE / GERAL ---
+
+def obter_lista_agentes():
+    """Retorna a lista de usuários únicos cadastrados nos lançamentos do diário."""
+    inicializar_diario_db()
+    conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT usuario FROM diario WHERE usuario IS NOT NULL AND TRIM(usuario) != '' ORDER BY usuario ASC")
+    agentes = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return agentes
+
+
+def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
+    """
+    Retorna o resumo dos lançamentos diários no período.
+    Se 'usuario' for especificado (e diferente de 'Todos'), filtra exclusivamente por esse agente.
+    """
+    inicializar_diario_db()
+    conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
+    cursor = conn.cursor()
+
+    sql_usuario = ""
+    params = [str(data_inicio), str(data_fim)]
+
+    if usuario and usuario != "Todos (Total Geral)":
+        sql_usuario = " AND LOWER(usuario) = LOWER(?)"
+        params.append(str(usuario).strip())
+
+    query = f"""
+        SELECT 
+            COUNT(id) AS total_lancados,
+            SUM(CASE WHEN situacao = 'Normal' THEN 1 ELSE 0 END) AS total_normal,
+            SUM(CASE WHEN situacao = 'Fechado' THEN 1 ELSE 0 END) AS total_fechado,
+            SUM(CASE WHEN situacao = 'Recuperado' THEN 1 ELSE 0 END) AS total_recuperado,
+            SUM(CASE WHEN tipo_imovel = 'Residência' THEN 1 ELSE 0 END) AS total_residencia,
+            SUM(CASE WHEN tipo_imovel = 'Comércio' THEN 1 ELSE 0 END) AS total_comercio,
+            SUM(CASE WHEN tipo_imovel = 'Terreno Baldio' THEN 1 ELSE 0 END) AS total_terreno,
+            SUM(CASE WHEN tipo_imovel NOT IN ('Residência', 'Comércio', 'Terreno Baldio') THEN 1 ELSE 0 END) AS total_outro,
+            COALESCE(SUM(depositos_eliminados), 0) AS total_eliminados,
+            COALESCE(SUM(depositos_tratados), 0) AS total_tratados,
+            COALESCE(SUM(gramas_medicamento), 0.0) AS total_gramas
+        FROM diario
+        WHERE DATE(data_registro) BETWEEN DATE(?) AND DATE(?) {sql_usuario}
+    """
+
+    cursor.execute(query, params)
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return {
+            "total_lancados": row[0] or 0,
+            "total_normal": row[1] or 0,
+            "total_fechado": row[2] or 0,
+            "total_recuperado": row[3] or 0,
+            "total_residencia": row[4] or 0,
+            "total_comercio": row[5] or 0,
+            "total_terreno": row[6] or 0,
+            "total_outro": row[7] or 0,
+            "total_eliminados": row[8] or 0,
+            "total_tratados": row[9] or 0,
+            "total_gramas": row[10] or 0.0,
+        }
+    return {
+        "total_lancados": 0,
+        "total_normal": 0,
+        "total_fechado": 0,
+        "total_recuperado": 0,
+        "total_residencia": 0,
+        "total_comercio": 0,
+        "total_terreno": 0,
+        "total_outro": 0,
+        "total_eliminados": 0,
+        "total_tratados": 0,
+        "total_gramas": 0.0,
+    }
+
 
 def obter_resumo_por_usuario_e_datas(usuario, data_inicio, data_fim):
-    """
-    Retorna o resumo dos lançamentos diários EXCLUSIVAMENTE do usuário informado no período selecionado.
-    """
-    inicializar_diario_db()
-    conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
-    cursor = conn.cursor()
-
-    query = """
-        SELECT 
-            COUNT(id) AS total_lancados,
-            SUM(CASE WHEN situacao = 'Normal' THEN 1 ELSE 0 END) AS total_normal,
-            SUM(CASE WHEN situacao = 'Fechado' THEN 1 ELSE 0 END) AS total_fechado,
-            SUM(CASE WHEN situacao = 'Recuperado' THEN 1 ELSE 0 END) AS total_recuperado,
-            SUM(CASE WHEN tipo_imovel = 'Residência' THEN 1 ELSE 0 END) AS total_residencia,
-            SUM(CASE WHEN tipo_imovel = 'Comércio' THEN 1 ELSE 0 END) AS total_comercio,
-            SUM(CASE WHEN tipo_imovel = 'Terreno Baldio' THEN 1 ELSE 0 END) AS total_terreno,
-            SUM(CASE WHEN tipo_imovel NOT IN ('Residência', 'Comércio', 'Terreno Baldio') THEN 1 ELSE 0 END) AS total_outro,
-            COALESCE(SUM(depositos_eliminados), 0) AS total_eliminados,
-            COALESCE(SUM(depositos_tratados), 0) AS total_tratados,
-            COALESCE(SUM(gramas_medicamento), 0.0) AS total_gramas
-        FROM diario
-        WHERE LOWER(usuario) = LOWER(?)
-          AND DATE(data_registro) BETWEEN DATE(?) AND DATE(?)
-    """
-
-    cursor.execute(query, (str(usuario).strip(), str(data_inicio), str(data_fim)))
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        return {
-            "total_lancados": row[0] or 0,
-            "total_normal": row[1] or 0,
-            "total_fechado": row[2] or 0,
-            "total_recuperado": row[3] or 0,
-            "total_residencia": row[4] or 0,
-            "total_comercio": row[5] or 0,
-            "total_terreno": row[6] or 0,
-            "total_outro": row[7] or 0,
-            "total_eliminados": row[8] or 0,
-            "total_tratados": row[9] or 0,
-            "total_gramas": row[10] or 0.0,
-        }
-    return {
-        "total_lancados": 0,
-        "total_normal": 0,
-        "total_fechado": 0,
-        "total_recuperado": 0,
-        "total_residencia": 0,
-        "total_comercio": 0,
-        "total_terreno": 0,
-        "total_outro": 0,
-        "total_eliminados": 0,
-        "total_tratados": 0,
-        "total_gramas": 0.0,
-    }
-
-
-def obter_resumo_por_datas(data_inicio, data_fim):
-    inicializar_diario_db()
-    conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
-    cursor = conn.cursor()
-
-    query = """
-        SELECT 
-            COUNT(id) AS total_lancados,
-            SUM(CASE WHEN situacao = 'Normal' THEN 1 ELSE 0 END) AS total_normal,
-            SUM(CASE WHEN situacao = 'Fechado' THEN 1 ELSE 0 END) AS total_fechado,
-            SUM(CASE WHEN situacao = 'Recuperado' THEN 1 ELSE 0 END) AS total_recuperado,
-            SUM(CASE WHEN tipo_imovel = 'Residência' THEN 1 ELSE 0 END) AS total_residencia,
-            SUM(CASE WHEN tipo_imovel = 'Comércio' THEN 1 ELSE 0 END) AS total_comercio,
-            SUM(CASE WHEN tipo_imovel = 'Terreno Baldio' THEN 1 ELSE 0 END) AS total_terreno,
-            SUM(CASE WHEN tipo_imovel NOT IN ('Residência', 'Comércio', 'Terreno Baldio') THEN 1 ELSE 0 END) AS total_outro,
-            COALESCE(SUM(depositos_eliminados), 0) AS total_eliminados,
-            COALESCE(SUM(depositos_tratados), 0) AS total_tratados,
-            COALESCE(SUM(gramas_medicamento), 0.0) AS total_gramas
-        FROM diario
-        WHERE DATE(data_registro) BETWEEN DATE(?) AND DATE(?)
-    """
-
-    cursor.execute(query, (str(data_inicio), str(data_fim)))
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        return {
-            "total_lancados": row[0] or 0,
-            "total_normal": row[1] or 0,
-            "total_fechado": row[2] or 0,
-            "total_recuperado": row[3] or 0,
-            "total_residencia": row[4] or 0,
-            "total_comercio": row[5] or 0,
-            "total_terreno": row[6] or 0,
-            "total_outro": row[7] or 0,
-            "total_eliminados": row[8] or 0,
-            "total_tratados": row[9] or 0,
-            "total_gramas": row[10] or 0.0,
-        }
-    return {
-        "total_lancados": 0,
-        "total_normal": 0,
-        "total_fechado": 0,
-        "total_recuperado": 0,
-        "total_residencia": 0,
-        "total_comercio": 0,
-        "total_terreno": 0,
-        "total_outro": 0,
-        "total_eliminados": 0,
-        "total_tratados": 0,
-        "total_gramas": 0.0,
-    }
+    return obter_resumo_por_datas(data_inicio, data_fim, usuario=usuario)
 
 
 def listar_status_quarteiroes_por_bairro(bairro_nome):
