@@ -135,6 +135,17 @@ else:
     if st.session_state["tipo_usuario"] == "Administrador":
         st.title("📍 Mapeamento Territorial de Quarteirões")
 
+        # --- EXIBIÇÃO DA DATA E CICLO ATUAL (ADMIN) ---
+        num_ciclo, ano_ciclo, dt_inicio_ciclo, dt_fim_ciclo = bairro.obter_info_ciclo_atual()
+        hoje_formatado = datetime.date.today().strftime("%d/%m/%Y")
+        
+        st.info(
+            f"📅 **Data de Hoje:** `{hoje_formatado}` | "
+            f"🔄 **Ciclo Atual:** `{num_ciclo}º Ciclo de {ano_ciclo}` "
+            f"(Período: `{dt_inicio_ciclo[:10]}` até `{dt_fim_ciclo[:10]}`)"
+        )
+        st.markdown("---")
+
         aba_cadastro, aba_registros, aba_resumo_admin, aba_backup = st.tabs(
             [
                 "➕ Cadastrar Imóvel",
