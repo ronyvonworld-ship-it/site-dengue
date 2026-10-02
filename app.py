@@ -93,8 +93,10 @@ if not st.session_state["logado"]:
                     st.session_state["usuario_atual"] = usuario_input.strip()
                     st.session_state["tipo_usuario"] = tipo
 
-                    # --- RESTAURAÇÃO VIA SDK DO DROPBOX ---
-                    with st.spinner("Sincronizando banco de dados com o Dropbox..."):
+                    # =========================================================
+                    # CARREGAMENTO AUTOMÁTICO DO DROPBOX APÓS LOGIN BEM-SUCEDIDO
+                    # =========================================================
+                    with st.spinner("Sincronizando dados com o Dropbox..."):
                         bairro.carregar_db_do_dropbox()
 
                     st.rerun()
@@ -107,7 +109,7 @@ else:
     st.sidebar.markdown(f"**Perfil:** `{st.session_state['tipo_usuario']}`")
 
     # Botão opcional para recarregar do Dropbox manualmente a qualquer momento
-    if st.sidebar.button("🔄 Atualizar Dados do Dropbox", use_container_width=True):
+    if st.sidebar.button("🔄 Sincronizar com Dropbox", use_container_width=True):
         with st.spinner("Atualizando arquivo..."):
             if os.path.exists("bairro.db"):
                 os.remove("bairro.db")
