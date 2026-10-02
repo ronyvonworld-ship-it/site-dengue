@@ -1,26 +1,14 @@
-# lancar_imovel.py
 import pandas as pd
 import streamlit as st
 import bairro
 
 
 def colorir_linha_por_situacao(row):
-    """
-    Aplica cores com base no status do ciclo atual:
-    - Verde (#d4edda): 'Normal' ou 'Recuperado'
-    - Vermelho (#f8d7da): 'Fechado'
-    - Padrão/Branco: Sem lançamento no ciclo atual
-    """
     situacao = row.get("Status Ciclo")
-
     if situacao in ["Normal", "Recuperado"]:
-        return [
-            "background-color: #d4edda; color: #155724; font-weight: bold;"
-        ] * len(row)
+        return ["background-color: #d4edda; color: #155724; font-weight: bold;"] * len(row)
     elif situacao == "Fechado":
-        return [
-            "background-color: #f8d7da; color: #721c24; font-weight: bold;"
-        ] * len(row)
+        return ["background-color: #f8d7da; color: #721c24; font-weight: bold;"] * len(row)
     else:
         return [""] * len(row)
 
@@ -40,9 +28,7 @@ def renderizar_tela_consulta():
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
         f_bairro = st.text_input("Filtrar por Bairro", key="f_bairro_user")
-        f_quarteirao = st.text_input(
-            "Filtrar por Nº Quarteirão", key="f_quarteirao_user"
-        )
+        f_quarteirao = st.text_input("Filtrar por Nº Quarteirão", key="f_quarteirao_user")
     with col_f2:
         f_rua = st.text_input("Filtrar por Rua", key="f_rua_user")
         f_imovel = st.text_input("Filtrar por Nº Imóvel", key="f_imovel_user")
@@ -112,9 +98,7 @@ def renderizar_tela_consulta():
             },
         )
 
-        linhas_selecionadas = evento_selecao.get("selection", {}).get(
-            "rows", []
-        )
+        linhas_selecionadas = evento_selecao.get("selection", {}).get("rows", [])
 
         if linhas_selecionadas:
             idx_selecionado = linhas_selecionadas[0]
@@ -125,21 +109,15 @@ def renderizar_tela_consulta():
             st.markdown("---")
             st.subheader(f"📝 Lançamento Diário para o Imóvel ID #{id_imovel}")
 
-            # Exibe os dados cadastrais do imóvel
             c1, c2, c3, c4 = st.columns(4)
             c1.markdown(f"**Bairro:** {imovel_sel['Bairro']}")
             c2.markdown(f"**Quarteirão:** {imovel_sel['Quarteirão']}")
-            c3.markdown(
-                f"**Rua e Nº:** {imovel_sel['Rua']}, {imovel_sel['Nº Imóvel']}"
-            )
+            c3.markdown(f"**Rua e Nº:** {imovel_sel['Rua']}, {imovel_sel['Nº Imóvel']}")
             c4.markdown(f"**Tipo:** {imovel_sel['Tipo']}")
 
-            # Define as opções de situação disponíveis dependendo do status atual
             if status_atual == "Fechado":
                 opcoes_situacao = ["Fechado", "Recuperado"]
-                st.info(
-                    "🔄 **Imóvel marcado como Fechado neste ciclo.** Selecione **Recuperado** para efetuar o lançamento da visita realizada."
-                )
+                st.info("🔄 **Imóvel marcado como Fechado neste ciclo.** Selecione **Recuperado** para efetuar a vistoria realizada.")
             else:
                 opcoes_situacao = ["Normal", "Fechado"]
 
@@ -155,7 +133,6 @@ def renderizar_tela_consulta():
             depositos_tratados = 0
             gramas_medicamento = 0.0
 
-            # Se for Normal ou Recuperado, exibe a coleta de dados da inspeção
             if situacao in ["Normal", "Recuperado"]:
                 col_dep1, col_dep2 = st.columns(2)
 
@@ -183,9 +160,7 @@ def renderizar_tela_consulta():
                             min_value=0,
                             max_value=max(depositos_eliminados, 0),
                             step=1,
-                            value=min(1, depositos_eliminados)
-                            if depositos_eliminados > 0
-                            else 0,
+                            value=min(1, depositos_eliminados) if depositos_eliminados > 0 else 0,
                             key=f"dep_trat_{id_imovel}",
                         )
 
@@ -210,9 +185,7 @@ def renderizar_tela_consulta():
                     and fez_tratamento == "Sim"
                     and depositos_tratados > depositos_eliminados
                 ):
-                    st.error(
-                        "❌ Erro: Depósitos tratados não podem ser maiores que os eliminados!"
-                    )
+                    st.error("❌ Erro: Depósitos tratados não podem ser maiores que os eliminados!")
                 else:
                     dados_registro = (
                         int(imovel_sel["ID"]),
@@ -229,9 +202,7 @@ def renderizar_tela_consulta():
                     )
 
                     bairro.salvar_registro_diario(dados_registro)
-                    st.success(
-                        f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!"
-                    )
+                    st.success(f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!")
                     st.rerun()
 
     else:
