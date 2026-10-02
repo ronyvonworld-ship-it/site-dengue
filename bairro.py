@@ -22,26 +22,12 @@ DROPBOX_REFRESH_TOKEN = st.secrets.get("DROPBOX_REFRESH_TOKEN", "")
 # --- FUNÇÃO DE ESTILIZAÇÃO VISUAL ---
 
 def colorir_linha_por_situacao(row):
-    """
-    Aplica as cores padrão para exibição dos imóveis:
-    - Verde: 'Normal' ou 'Recuperado'
-    - Vermelho: 'Fechado'
-    - Branco/Padrão: Sem lançamento no ciclo atual
-    """
-    situacao = (
-        row.get("Status Ciclo")
-        if "Status Ciclo" in row
-        else row.get("status_ciclo")
-    )
+    situacao = row.get("Status Ciclo") if "Status Ciclo" in row else row.get("status_ciclo")
 
     if situacao in ["Normal", "Recuperado"]:
-        return [
-            "background-color: #d4edda; color: #155724; font-weight: bold;"
-        ] * len(row)
+        return ["background-color: #d4edda; color: #155724; font-weight: bold;"] * len(row)
     elif situacao == "Fechado":
-        return [
-            "background-color: #f8d7da; color: #721c24; font-weight: bold;"
-        ] * len(row)
+        return ["background-color: #f8d7da; color: #721c24; font-weight: bold;"] * len(row)
     else:
         return [""] * len(row)
 
@@ -55,7 +41,7 @@ def obter_cliente_dropbox():
         dbx = dropbox.Dropbox(
             app_key=DROPBOX_APP_KEY,
             app_secret=DROPBOX_APP_SECRET,
-            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
+            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN
         )
         return dbx
     except Exception as e:
@@ -95,7 +81,7 @@ def enviar_db_para_dropbox():
                 db_cliente.files_upload(
                     f.read(),
                     CAMINHO_DROPBOX_BAIRRO,
-                    mode=dropbox.files.WriteMode.overwrite,
+                    mode=dropbox.files.WriteMode.overwrite
                 )
             st.toast("☁️ Alterações salvas no Dropbox!", icon="✅")
             return True
@@ -110,8 +96,7 @@ def enviar_db_para_dropbox():
 def inicializar_diario_db():
     conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
     cursor = conn.cursor()
-    cursor.execute(
-        """
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS diario (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             imovel_id INTEGER,
@@ -125,10 +110,16 @@ def inicializar_diario_db():
             fez_tratamento TEXT,
             depositos_tratados INTEGER DEFAULT 0,
             gramas_medicamento REAL DEFAULT 0.0,
+            usuario TEXT DEFAULT '',
             data_registro DATETIME DEFAULT CURRENT_TIMESTAMP
         )
-    """
-    )
+    """)
+    # Garante que a coluna usuario exista caso o banco tenha sido criado anteriormente sem ela
+    try:
+        cursor.execute("ALTER TABLE diario ADD COLUMN usuario TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -144,7 +135,7 @@ def enviar_diario_dropbox():
                 db_cliente.files_upload(
                     f.read(),
                     CAMINHO_DROPBOX_DIARIO,
-                    mode=dropbox.files.WriteMode.overwrite,
+                    mode=dropbox.files.WriteMode.overwrite
                 )
             st.toast("☁️ Diário sincronizado com o Dropbox!", icon="✅")
             return True
@@ -158,15 +149,12 @@ def salvar_registro_diario(dados_registro):
     inicializar_diario_db()
     conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
     cursor = conn.cursor()
-    cursor.execute(
-        """
+    cursor.execute("""
         INSERT INTO diario (
             imovel_id, bairro, quarteirao, rua, num_imovel, tipo_imovel,
-            situacao, depositos_eliminados, fez_tratamento, depositos_tratados, gramas_medicamento
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-        dados_registro,
-    )
+            situacao, depositos_eliminados, fez_tratamento, depositos_tratados, gramas_medicamento, usuario
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, dados_registro)
     conn.commit()
     conn.close()
 
@@ -189,9 +177,7 @@ def obter_info_ciclo_atual():
     if mes_fim in [4, 6, 9, 11]:
         ultimo_dia = 30
     elif mes_fim == 2:
-        ultimo_dia = (
-            29 if (ano % 4 == 0 and (ano % 100 != 0 or ano % 400 == 0)) else 28
-        )
+        ultimo_dia = 29 if (ano % 4 == 0 and (ano % 100 != 0 or ano % 400 == 0)) else 28
     else:
         ultimo_dia = 31
 
@@ -209,8 +195,7 @@ def init_db_bairro():
 
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
-    cursor.execute(
-        """
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS quarteiroes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome_bairro TEXT NOT NULL,
@@ -220,8 +205,7 @@ def init_db_bairro():
             num_imovel TEXT NOT NULL,
             tipo_imovel TEXT NOT NULL
         )
-    """
-    )
+    """)
     conn.commit()
     conn.close()
 
@@ -230,13 +214,10 @@ def salvar_quarteirao(bairro, quarteirao, rua, lado, imovel, tipo):
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
-    cursor.execute(
-        """
+    cursor.execute("""
         INSERT INTO quarteiroes (nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel)
         VALUES (?, ?, ?, ?, ?, ?)
-    """,
-        (bairro, quarteirao, rua, lado, imovel, tipo),
-    )
+    """, (bairro, quarteirao, rua, lado, imovel, tipo))
     conn.commit()
     conn.close()
     enviar_db_para_dropbox()
@@ -246,14 +227,11 @@ def atualizar_quarteirao(id_reg, bairro, quarteirao, rua, lado, imovel, tipo):
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
-    cursor.execute(
-        """
+    cursor.execute("""
         UPDATE quarteiroes
         SET nome_bairro = ?, num_quarteirao = ?, nome_rua = ?, num_lado = ?, num_imovel = ?, tipo_imovel = ?
         WHERE id = ?
-    """,
-        (bairro, quarteirao, rua, lado, imovel, tipo, id_reg),
-    )
+    """, (bairro, quarteirao, rua, lado, imovel, tipo, id_reg))
     conn.commit()
     conn.close()
     enviar_db_para_dropbox()
@@ -269,9 +247,7 @@ def excluir_quarteirao(id_reg):
     enviar_db_para_dropbox()
 
 
-def montar_clausula_where(
-    f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""
-):
+def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
     sql_where = " WHERE 1=1"
     params = []
 
@@ -280,11 +256,7 @@ def montar_clausula_where(
         params.append(f"%{f_bairro.strip()}%")
 
     if f_quarteirao and f_quarteirao.strip():
-        lista_q = [
-            q.strip()
-            for q in re.split(r"[\s,]+", f_quarteirao.strip())
-            if q.strip()
-        ]
+        lista_q = [q.strip() for q in re.split(r'[\s,]+', f_quarteirao.strip()) if q.strip()]
         if lista_q:
             placeholders = ",".join(["?"] * len(lista_q))
             sql_where += f" AND q.num_quarteirao IN ({placeholders})"
@@ -305,29 +277,19 @@ def montar_clausula_where(
     return sql_where, params
 
 
-def listar_quarteiroes(
-    f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""
-):
+def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
-    sql_where, params = montar_clausula_where(
-        f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
-    )
-    sql = (
-        "SELECT id, nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel FROM quarteiroes q"
-        + sql_where
-        + " ORDER BY CAST(q.num_quarteirao AS INTEGER) ASC, q.num_lado ASC, q.id ASC"
-    )
+    sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
+    sql = "SELECT id, nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel FROM quarteiroes q" + sql_where + " ORDER BY CAST(q.num_quarteirao AS INTEGER) ASC, q.num_lado ASC, q.id ASC"
     cursor.execute(sql, params)
     dados = cursor.fetchall()
     conn.close()
     return dados
 
 
-def listar_quarteiroes_com_status(
-    f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""
-):
+def listar_quarteiroes_com_status(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
     init_db_bairro()
     inicializar_diario_db()
 
@@ -338,9 +300,7 @@ def listar_quarteiroes_com_status(
 
     cursor.execute(f"ATTACH DATABASE '{ARQUIVO_DIARIO_DB}' AS db_diario")
 
-    sql_where, params = montar_clausula_where(
-        f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
-    )
+    sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
 
     sql = f"""
         SELECT 
@@ -369,25 +329,17 @@ def listar_quarteiroes_com_status(
     return dados
 
 
-def obter_resumo_filtros(
-    f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""
-):
+def obter_resumo_filtros(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
-    sql_where, params = montar_clausula_where(
-        f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
-    )
+    sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
 
     sql_total = "SELECT COUNT(*) FROM quarteiroes q" + sql_where
     cursor.execute(sql_total, params)
     total_imoveis = cursor.fetchone()[0]
 
-    sql_por_tipo = (
-        "SELECT q.tipo_imovel, COUNT(*) FROM quarteiroes q"
-        + sql_where
-        + " GROUP BY q.tipo_imovel"
-    )
+    sql_por_tipo = "SELECT q.tipo_imovel, COUNT(*) FROM quarteiroes q" + sql_where + " GROUP BY q.tipo_imovel"
     cursor.execute(sql_por_tipo, params)
     por_tipo = dict(cursor.fetchall())
 
@@ -395,13 +347,68 @@ def obter_resumo_filtros(
     return total_imoveis, por_tipo
 
 
-# --- RESUMO POR DATAS E STATUS DOS QUARTEIRÕES POR BAIRRO (ADMIN) ---
+# --- RESUMO POR USUARIO E POR DATAS ---
+
+def obter_resumo_por_usuario_e_datas(usuario, data_inicio, data_fim):
+    """
+    Retorna o resumo dos lançamentos diários EXCLUSIVAMENTE do usuário informado no período selecionado.
+    """
+    inicializar_diario_db()
+    conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
+    cursor = conn.cursor()
+
+    query = """
+        SELECT 
+            COUNT(id) AS total_lancados,
+            SUM(CASE WHEN situacao = 'Normal' THEN 1 ELSE 0 END) AS total_normal,
+            SUM(CASE WHEN situacao = 'Fechado' THEN 1 ELSE 0 END) AS total_fechado,
+            SUM(CASE WHEN situacao = 'Recuperado' THEN 1 ELSE 0 END) AS total_recuperado,
+            SUM(CASE WHEN tipo_imovel = 'Residência' THEN 1 ELSE 0 END) AS total_residencia,
+            SUM(CASE WHEN tipo_imovel = 'Comércio' THEN 1 ELSE 0 END) AS total_comercio,
+            SUM(CASE WHEN tipo_imovel = 'Terreno Baldio' THEN 1 ELSE 0 END) AS total_terreno,
+            SUM(CASE WHEN tipo_imovel NOT IN ('Residência', 'Comércio', 'Terreno Baldio') THEN 1 ELSE 0 END) AS total_outro,
+            COALESCE(SUM(depositos_eliminados), 0) AS total_eliminados,
+            COALESCE(SUM(depositos_tratados), 0) AS total_tratados,
+            COALESCE(SUM(gramas_medicamento), 0.0) AS total_gramas
+        FROM diario
+        WHERE LOWER(usuario) = LOWER(?)
+          AND DATE(data_registro) BETWEEN DATE(?) AND DATE(?)
+    """
+
+    cursor.execute(query, (str(usuario).strip(), str(data_inicio), str(data_fim)))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return {
+            "total_lancados": row[0] or 0,
+            "total_normal": row[1] or 0,
+            "total_fechado": row[2] or 0,
+            "total_recuperado": row[3] or 0,
+            "total_residencia": row[4] or 0,
+            "total_comercio": row[5] or 0,
+            "total_terreno": row[6] or 0,
+            "total_outro": row[7] or 0,
+            "total_eliminados": row[8] or 0,
+            "total_tratados": row[9] or 0,
+            "total_gramas": row[10] or 0.0,
+        }
+    return {
+        "total_lancados": 0,
+        "total_normal": 0,
+        "total_fechado": 0,
+        "total_recuperado": 0,
+        "total_residencia": 0,
+        "total_comercio": 0,
+        "total_terreno": 0,
+        "total_outro": 0,
+        "total_eliminados": 0,
+        "total_tratados": 0,
+        "total_gramas": 0.0,
+    }
+
 
 def obter_resumo_por_datas(data_inicio, data_fim):
-    """
-    Retorna a contagem completa de lançamentos por situação, tipos de imóvel,
-    depósitos eliminados/tratados e dosagem de medicamentos.
-    """
     inicializar_diario_db()
     conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
     cursor = conn.cursor()
@@ -457,10 +464,6 @@ def obter_resumo_por_datas(data_inicio, data_fim):
 
 
 def listar_status_quarteiroes_por_bairro(bairro_nome):
-    """
-    Pesquisa APENAS pelo nome do Bairro e retorna a lista de TODOS os quarteirões
-    com a contagem de imóveis cadastrados, lançados e o status (CONCLUÍDO / INCOMPLETO).
-    """
     init_db_bairro()
     inicializar_diario_db()
 
@@ -493,97 +496,57 @@ def listar_status_quarteiroes_por_bairro(bairro_nome):
     for q_num, total, lancados in registros:
         concluido = (lancados >= total) and (total > 0)
         status_txt = "✅ CONCLUÍDO" if concluido else "❌ INCOMPLETO"
-        resultado.append(
-            {
-                "Quarteirão": q_num,
-                "Total Imóveis": total,
-                "Imóveis Visitados": lancados,
-                "Pendentes": max(0, total - lancados),
-                "Status": status_txt,
-            }
-        )
+        resultado.append({
+            "Quarteirão": q_num,
+            "Total Imóveis": total,
+            "Imóveis Visitados": lancados,
+            "Pendentes": max(0, total - lancados),
+            "Status": status_txt
+        })
 
     return resultado
 
 
 # --- RECURSOS AUXILIARES ---
 
-def confirmar_e_atualizar(
-    id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val
-):
+def confirmar_e_atualizar(id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val):
     chave_edicao = f"confirmar_edicao_{id_sel}"
-    if st.button(
-        "💾 Salvar Alterações",
-        use_container_width=True,
-        key=f"btn_salvar_{id_sel}",
-    ):
+    if st.button("💾 Salvar Alterações", use_container_width=True, key=f"btn_salvar_{id_sel}"):
         st.session_state[chave_edicao] = True
         st.session_state[f"confirmar_exclusao_{id_sel}"] = False
 
     if st.session_state.get(chave_edicao, False):
-        st.info(
-            f"❓ Tem certeza de que deseja atualizar o **Registro ID {id_sel}**?"
-        )
+        st.info(f"❓ Tem certeza de que deseja atualizar o **Registro ID {id_sel}**?")
         col_sim, col_nao = st.columns(2)
         with col_sim:
-            if st.button(
-                "✅ Confirmar Atualização",
-                key=f"sim_edit_{id_sel}",
-                use_container_width=True,
-            ):
-                atualizar_quarteirao(
-                    id_sel,
-                    bairro_val,
-                    quarteirao_val,
-                    rua_val,
-                    lado_val,
-                    imovel_val,
-                    tipo_val,
-                )
+            if st.button("✅ Confirmar Atualização", key=f"sim_edit_{id_sel}", use_container_width=True):
+                atualizar_quarteirao(id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val)
                 st.session_state[chave_edicao] = False
                 st.success(f"Registro ID {id_sel} atualizado com sucesso!")
                 st.rerun()
         with col_nao:
-            if st.button(
-                "❌ Cancelar",
-                key=f"cancela_edit_{id_sel}",
-                use_container_width=True,
-            ):
+            if st.button("❌ Cancelar", key=f"cancela_edit_{id_sel}", use_container_width=True):
                 st.session_state[chave_edicao] = False
                 st.rerun()
 
 
 def confirmar_e_excluir(id_sel):
     chave_exclusao = f"confirmar_exclusao_{id_sel}"
-    if st.button(
-        "🗑️ Excluir Imóvel",
-        use_container_width=True,
-        key=f"btn_excluir_{id_sel}",
-    ):
+    if st.button("🗑️ Excluir Imóvel", use_container_width=True, key=f"btn_excluir_{id_sel}"):
         st.session_state[chave_exclusao] = True
         st.session_state[f"confirmar_edicao_{id_sel}"] = False
 
     if st.session_state.get(chave_exclusao, False):
-        st.warning(
-            f"⚠️ **ATENÇÃO:** Tem certeza de que deseja excluir o **Registro ID {id_sel}**?"
-        )
+        st.warning(f"⚠️ **ATENÇÃO:** Tem certeza de que deseja excluir o **Registro ID {id_sel}**?")
         col_sim, col_nao = st.columns(2)
         with col_sim:
-            if st.button(
-                "🔴 Sim, Excluir Registro",
-                key=f"sim_exc_{id_sel}",
-                use_container_width=True,
-            ):
+            if st.button("🔴 Sim, Excluir Registro", key=f"sim_exc_{id_sel}", use_container_width=True):
                 excluir_quarteirao(id_sel)
                 st.session_state[chave_exclusao] = False
                 st.success(f"Registro ID {id_sel} excluído com sucesso!")
                 st.rerun()
         with col_nao:
-            if st.button(
-                "❌ Cancelar",
-                key=f"cancela_exc_{id_sel}",
-                use_container_width=True,
-            ):
+            if st.button("❌ Cancelar", key=f"cancela_exc_{id_sel}", use_container_width=True):
                 st.session_state[chave_exclusao] = False
                 st.rerun()
 
@@ -608,7 +571,7 @@ def gerenciar_backup_db():
             data=bytes_db,
             file_name="bairro.db",
             mime="application/x-sqlite3",
-            use_container_width=True,
+            use_container_width=True
         )
 
     with col_up:
@@ -617,19 +580,15 @@ def gerenciar_backup_db():
             "Selecione um arquivo .db local",
             type=["db", "sqlite", "sqlite3"],
             key="uploader_db_bairro",
-            label_visibility="collapsed",
+            label_visibility="collapsed"
         )
         if arquivo_enviado is not None:
-            if st.button(
-                "⬆ Restaurar/Substituir via Upload", use_container_width=True
-            ):
+            if st.button("⬆ Restaurar/Substituir via Upload", use_container_width=True):
                 try:
                     with open(ARQUIVO_DB_BAIRRO, "wb") as f:
                         f.write(arquivo_enviado.getbuffer())
                     enviar_db_para_dropbox()
-                    st.success(
-                        "✅ Banco de dados atualizado e enviado para o Dropbox com sucesso!"
-                    )
+                    st.success("✅ Banco de dados atualizado e enviado para o Dropbox com sucesso!")
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Erro ao salvar o arquivo enviado: {e}")
