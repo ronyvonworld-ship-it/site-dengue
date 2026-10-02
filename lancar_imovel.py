@@ -46,7 +46,7 @@ def renderizar_tela_consulta():
             dt_fim_user = st.date_input("Data Final", value=datetime.date.today(), key="u_dt_fim")
 
         if dt_inicio_user > dt_fim_user:
-            st.error("⚠️ A data inicial não pode ser maior que a data final.")
+            st.error("⚠️️ A data inicial não pode ser maior que a data final.")
         else:
             resumo_u = bairro.obter_resumo_por_usuario_e_datas(usuario_logado, dt_inicio_user, dt_fim_user)
 
@@ -125,11 +125,11 @@ def renderizar_tela_consulta():
         st.subheader(f"Lista de Registros ({len(df)})")
 
         col_leg1, col_leg2, col_leg3 = st.columns(3)
-        col_leg1.markdown("🟩 **Verde**: Lançado como *Normal* ou *Recuperado* no ciclo")
-        col_leg2.markdown("🟥 **Vermelho**: Lançado como *Fechado* no ciclo")
-        col_leg3.markdown("⬜ **Branco**: Sem lançamento no ciclo atual")
+        col_leg1.markdown("🟩 **Verde**: Lançado como *Normal* ou *Recuperado* (Bloqueado)")
+        col_leg2.markdown("🟥 **Vermelho**: Lançado como *Fechado* (Requer Recuperação)")
+        col_leg3.markdown("⬜ **Branco**: Sem lançamento (Disponível)")
 
-        st.info("💡 Clique em uma linha da tabela para realizar o lançamento.")
+        st.info("💡 Clique em uma linha da tabela para realizar o lançamento (Imóveis com status **Normal** ou **Recuperado** já concluídos não podem ser alterados).")
 
         if not df.empty:
             df_estilizado = df.style.apply(colorir_linha_por_situacao, axis=1)
@@ -156,105 +156,109 @@ def renderizar_tela_consulta():
                 id_imovel = imovel_sel["ID"]
                 status_atual = imovel_sel["Status Ciclo"]
 
-                st.markdown("---")
-                st.subheader(f"📝 Lançamento Diário para o Imóvel ID #{id_imovel}")
-
-                c1, c2, c3, c4 = st.columns(4)
-                c1.markdown(f"**Bairro:** {imovel_sel['Bairro']}")
-                c2.markdown(f"**Quarteirão:** {imovel_sel['Quarteirão']}")
-                c3.markdown(f"**Rua e Nº:** {imovel_sel['Rua']}, {imovel_sel['Nº Imóvel']}")
-                c4.markdown(f"**Tipo:** {imovel_sel['Tipo']}")
-
-                if status_atual == "Fechado":
-                    opcoes_situacao = ["Fechado", "Recuperado"]
-                    st.info("🔄 **Imóvel marcado como Fechado neste ciclo.** Selecione **Recuperado** para efetuar a vistoria realizada.")
+                # Bloqueio estrito se o imóvel já foi Normal ou Recuperado no ciclo
+                if status_atual in ["Normal", "Recuperado"]:
+                    st.warning(f"🔒 **Imóvel ID #{id_imovel} já possui lançamento de ciclo concluído ({status_atual}) e está bloqueado para novas edições.**")
                 else:
-                    opcoes_situacao = ["Normal", "Fechado"]
+                    st.markdown("---")
+                    st.subheader(f"📝 Lançamento Diário para o Imóvel ID #{id_imovel}")
 
-                situacao = st.radio(
-                    "Situação do Imóvel:",
-                    opcoes_situacao,
-                    horizontal=True,
-                    key=f"situacao_{id_imovel}",
-                )
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.markdown(f"**Bairro:** {imovel_sel['Bairro']}")
+                    c2.markdown(f"**Quarteirão:** {imovel_sel['Quarteirão']}")
+                    c3.markdown(f"**Rua e Nº:** {imovel_sel['Rua']}, {imovel_sel['Nº Imóvel']}")
+                    c4.markdown(f"**Tipo:** {imovel_sel['Tipo']}")
 
-                depositos_eliminados = 0
-                fez_tratamento = "Não"
-                depositos_tratados = 0
-                gramas_medicamento = 0.0
-
-                if situacao in ["Normal", "Recuperado"]:
-                    col_dep1, col_dep2 = st.columns(2)
-
-                    with col_dep1:
-                        depositos_eliminados = st.number_input(
-                            "Depósitos Eliminados",
-                            min_value=0,
-                            step=1,
-                            value=0,
-                            key=f"dep_elim_{id_imovel}",
-                        )
-
-                    with col_dep2:
-                        fez_tratamento = st.selectbox(
-                            "Foi feito tratamento?",
-                            ["Não", "Sim"],
-                            key=f"fez_trat_{id_imovel}",
-                        )
-
-                    if fez_tratamento == "Sim":
-                        col_trat1, col_trat2 = st.columns(2)
-                        with col_trat1:
-                            depositos_tratados = st.number_input(
-                                f"Depósitos Tratados (Máx: {depositos_eliminados})",
-                                min_value=0,
-                                max_value=max(depositos_eliminados, 0),
-                                step=1,
-                                value=min(1, depositos_eliminados) if depositos_eliminados > 0 else 0,
-                                key=f"dep_trat_{id_imovel}",
-                            )
-
-                        with col_trat2:
-                            gramas_medicamento = st.number_input(
-                                "Quantidade de Medicamento Utilizado (g)",
-                                min_value=0.0,
-                                step=0.5,
-                                format="%.2f",
-                                key=f"gramas_{id_imovel}",
-                            )
-
-                st.markdown(" ")
-                if st.button(
-                    "💾 Salvar Lançamento no Diário",
-                    type="primary",
-                    use_container_width=True,
-                    key=f"btn_salvar_{id_imovel}",
-                ):
-                    if (
-                        situacao in ["Normal", "Recuperado"]
-                        and fez_tratamento == "Sim"
-                        and depositos_tratados > depositos_eliminados
-                    ):
-                        st.error("❌ Erro: Depósitos tratados não podem ser maiores que os eliminados!")
+                    if status_atual == "Fechado":
+                        opcoes_situacao = ["Fechado", "Recuperado"]
+                        st.info("🔄 **Imóvel marcado como Fechado neste ciclo.** Selecione **Recuperado** para efetuar a vistoria realizada.")
                     else:
-                        dados_registro = (
-                            int(imovel_sel["ID"]),
-                            str(imovel_sel["Bairro"]),
-                            str(imovel_sel["Quarteirão"]),
-                            str(imovel_sel["Rua"]),
-                            str(imovel_sel["Nº Imóvel"]),
-                            str(imovel_sel["Tipo"]),
-                            situacao,
-                            depositos_eliminados,
-                            fez_tratamento,
-                            depositos_tratados,
-                            gramas_medicamento,
-                            usuario_logado,
-                        )
+                        opcoes_situacao = ["Normal", "Fechado"]
 
-                        bairro.salvar_registro_diario(dados_registro)
-                        st.success(f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!")
-                        st.rerun()
+                    situacao = st.radio(
+                        "Situação do Imóvel:",
+                        opcoes_situacao,
+                        horizontal=True,
+                        key=f"situacao_{id_imovel}",
+                    )
+
+                    depositos_eliminados = 0
+                    fez_tratamento = "Não"
+                    depositos_tratados = 0
+                    gramas_medicamento = 0.0
+
+                    if situacao in ["Normal", "Recuperado"]:
+                        col_dep1, col_dep2 = st.columns(2)
+
+                        with col_dep1:
+                            depositos_eliminados = st.number_input(
+                                "Depósitos Eliminados",
+                                min_value=0,
+                                step=1,
+                                value=0,
+                                key=f"dep_elim_{id_imovel}",
+                            )
+
+                        with col_dep2:
+                            fez_tratamento = st.selectbox(
+                                "Foi feito tratamento?",
+                                ["Não", "Sim"],
+                                key=f"fez_trat_{id_imovel}",
+                            )
+
+                        if fez_tratamento == "Sim":
+                            col_trat1, col_trat2 = st.columns(2)
+                            with col_trat1:
+                                depositos_tratados = st.number_input(
+                                    f"Depósitos Tratados (Máx: {depositos_eliminados})",
+                                    min_value=0,
+                                    max_value=max(depositos_eliminados, 0),
+                                    step=1,
+                                    value=min(1, depositos_eliminados) if depositos_eliminados > 0 else 0,
+                                    key=f"dep_trat_{id_imovel}",
+                                )
+
+                            with col_trat2:
+                                gramas_medicamento = st.number_input(
+                                    "Quantidade de Medicamento Utilizado (g)",
+                                    min_value=0.0,
+                                    step=0.5,
+                                    format="%.2f",
+                                    key=f"gramas_{id_imovel}",
+                                )
+
+                    st.markdown(" ")
+                    if st.button(
+                        "💾 Salvar Lançamento no Diário",
+                        type="primary",
+                        use_container_width=True,
+                        key=f"btn_salvar_{id_imovel}",
+                    ):
+                        if (
+                            situacao in ["Normal", "Recuperado"]
+                            and fez_tratamento == "Sim"
+                            and depositos_tratados > depositos_eliminados
+                        ):
+                            st.error("❌ Erro: Depósitos tratados não podem ser maiores que os eliminados!")
+                        else:
+                            dados_registro = (
+                                int(imovel_sel["ID"]),
+                                str(imovel_sel["Bairro"]),
+                                str(imovel_sel["Quarteirão"]),
+                                str(imovel_sel["Rua"]),
+                                str(imovel_sel["Nº Imóvel"]),
+                                str(imovel_sel["Tipo"]),
+                                situacao,
+                                depositos_eliminados,
+                                fez_tratamento,
+                                depositos_tratados,
+                                gramas_medicamento,
+                                usuario_logado,
+                            )
+
+                            bairro.salvar_registro_diario(dados_registro)
+                            st.success(f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!")
+                            st.rerun()
 
         else:
             st.info("Nenhum imóvel com status FECHADO encontrado.")
