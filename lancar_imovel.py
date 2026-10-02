@@ -5,8 +5,15 @@ import bairro
 
 
 def colorir_linha_por_situacao(row):
+    """
+    Aplica cores com base no status do ciclo atual:
+    - Verde (#d4edda): 'Normal' ou 'Recuperado'
+    - Vermelho (#f8d7da): 'Fechado'
+    - Padrão/Branco: Sem lançamento no ciclo atual
+    """
     situacao = row.get("Status Ciclo")
-    if situacao == "Normal":
+
+    if situacao in ["Normal", "Recuperado"]:
         return [
             "background-color: #d4edda; color: #155724; font-weight: bold;"
         ] * len(row)
@@ -68,8 +75,8 @@ def renderizar_tela_consulta():
     st.subheader(f"Lista de Registros ({len(dados)})")
 
     col_leg1, col_leg2, col_leg3 = st.columns(3)
-    col_leg1.markdown("🟩 **Verde**: Lançado como *Normal* no ciclo atual")
-    col_leg2.markdown("🟥 **Vermelho**: Lançado como *Fechado* no ciclo atual")
+    col_leg1.markdown("🟩 **Verde**: Lançado como *Normal* ou *Recuperado* no ciclo")
+    col_leg2.markdown("🟥 **Vermelho**: Lançado como *Fechado* no ciclo")
     col_leg3.markdown("⬜ **Branco**: Sem lançamento no ciclo atual")
 
     st.info("💡 Clique em uma linha da tabela para realizar o lançamento.")
@@ -113,11 +120,12 @@ def renderizar_tela_consulta():
             idx_selecionado = linhas_selecionadas[0]
             imovel_sel = df.iloc[idx_selecionado]
             id_imovel = imovel_sel["ID"]
+            status_atual = imovel_sel["Status Ciclo"]
 
             st.markdown("---")
             st.subheader(f"📝 Lançamento Diário para o Imóvel ID #{id_imovel}")
 
-            # Resumo do imóvel selecionado
+            # Exibe os dados cadastrais do imóvel
             c1, c2, c3, c4 = st.columns(4)
             c1.markdown(f"**Bairro:** {imovel_sel['Bairro']}")
             c2.markdown(f"**Quarteirão:** {imovel_sel['Quarteirão']}")
@@ -126,10 +134,18 @@ def renderizar_tela_consulta():
             )
             c4.markdown(f"**Tipo:** {imovel_sel['Tipo']}")
 
-            # Controles dinâmicos com seletores fora do form para atualizar na hora
+            # Define as opções de situação disponíveis dependendo do status atual
+            if status_atual == "Fechado":
+                opcoes_situacao = ["Fechado", "Recuperado"]
+                st.info(
+                    "🔄 **Imóvel marcado como Fechado neste ciclo.** Selecione **Recuperado** para efetuar o lançamento da visita realizada."
+                )
+            else:
+                opcoes_situacao = ["Normal", "Fechado"]
+
             situacao = st.radio(
                 "Situação do Imóvel:",
-                ["Normal", "Fechado"],
+                opcoes_situacao,
                 horizontal=True,
                 key=f"situacao_{id_imovel}",
             )
@@ -139,7 +155,8 @@ def renderizar_tela_consulta():
             depositos_tratados = 0
             gramas_medicamento = 0.0
 
-            if situacao == "Normal":
+            # Se for Normal ou Recuperado, exibe a coleta de dados da inspeção
+            if situacao in ["Normal", "Recuperado"]:
                 col_dep1, col_dep2 = st.columns(2)
 
                 with col_dep1:
@@ -189,7 +206,7 @@ def renderizar_tela_consulta():
                 key=f"btn_salvar_{id_imovel}",
             ):
                 if (
-                    situacao == "Normal"
+                    situacao in ["Normal", "Recuperado"]
                     and fez_tratamento == "Sim"
                     and depositos_tratados > depositos_eliminados
                 ):
@@ -213,7 +230,7 @@ def renderizar_tela_consulta():
 
                     bairro.salvar_registro_diario(dados_registro)
                     st.success(
-                        "Lançamento salvo e sincronizado no Dropbox com sucesso!"
+                        f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!"
                     )
                     st.rerun()
 
