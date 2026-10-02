@@ -328,4 +328,6 @@ else:
             bairro.gerenciar_backup_db()
 
     else:
+        # Usuário Operador / Agente de Campo
+        st.session_state["operador"] = st.session_state["usuario_atual"]
         lancar_imovel.renderizar_tela_consulta()
