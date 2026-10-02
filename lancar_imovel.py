@@ -20,6 +20,16 @@ def renderizar_tela_consulta():
     usuario_logado = st.session_state.get("usuario_atual", "Operador")
     st.title(f"📍 Mapeamento Territorial - Painel do Agente (`{usuario_logado}`)")
 
+    # --- EXIBIÇÃO DA DATA E CICLO ATUAL (AGENTE) ---
+    num_ciclo, ano_ciclo, dt_inicio_ciclo, dt_fim_ciclo = bairro.obter_info_ciclo_atual()
+    hoje_formatado = datetime.date.today().strftime("%d/%m/%Y")
+    
+    st.info(
+        f"📅 **Data de Hoje:** `{hoje_formatado}` | "
+        f"🔄 **Ciclo Atual:** `{num_ciclo}º Ciclo de {ano_ciclo}` "
+        f"(Período: `{dt_inicio_ciclo[:10]}` até `{dt_fim_ciclo[:10]}`)"
+    )
+
     with st.spinner("🔄 Carregando dados atualizados do Dropbox..."):
         try:
             bairro.carregar_db_do_dropbox(forcar=True)
