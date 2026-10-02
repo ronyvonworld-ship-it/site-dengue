@@ -231,7 +231,8 @@ else:
                     key="f_tipo",
                 )
 
-            dados = bairro.listar_quarteiroes(
+            # ALTERADO AQUI PARA USAR A NOVA FUNÇÃO DETALHADA COM STATUS
+            dados_detalhados = bairro.listar_quarteiroes_com_status_detalhado(
                 f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
             )
             total_imoveis, detalhe_tipos = bairro.obter_resumo_filtros(
@@ -251,11 +252,11 @@ else:
             m_col5.metric("Outros", detalhe_tipos.get("Outro", 0))
 
             st.markdown("---")
-            st.subheader(f"Lista de Registros ({len(dados)})")
+            st.subheader(f"Lista de Registros ({len(dados_detalhados)})")
 
-            if dados:
+            if dados_detalhados:
                 df = pd.DataFrame(
-                    dados,
+                    dados_detalhados,
                     columns=[
                         "ID",
                         "Bairro",
@@ -264,16 +265,24 @@ else:
                         "Lado",
                         "Nº Imóvel",
                         "Tipo",
+                        "Status Ciclo",
+                        "Agente",
+                        "Data do Lançamento",
                     ],
                 )
-                st.dataframe(df, use_container_width=True, hide_index=True)
+
+                # Aplicação da coloração condicional e exibição do dataframe estilizado
+                df_estilizado = df.style.apply(
+                    bairro.colorir_linha_por_situacao, axis=1
+                )
+                st.dataframe(df_estilizado, use_container_width=True, hide_index=True)
 
                 st.markdown("---")
-                st.subheader("⚙️ Gerenciar Registro Selecionado")
+                st.subheader("⚙️️ Gerenciar Registro Selecionado")
 
                 opcoes_imoveis = {
                     f"ID {row[0]} | Bairro: {row[1]} | Quart.: {row[2]} | Rua: {row[3]} | Imóvel: {row[5]}": row
-                    for row in dados
+                    for row in dados_detalhados
                 }
 
                 imovel_selecionado_str = st.selectbox(
