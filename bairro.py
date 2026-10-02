@@ -160,6 +160,17 @@ def salvar_registro_diario(dados_registro):
     enviar_diario_dropbox()
 
 
+def limpar_diario_db():
+    """Apaga todos os registros da tabela diario."""
+    inicializar_diario_db()
+    conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM diario")
+    conn.commit()
+    conn.close()
+    enviar_diario_dropbox()
+
+
 # --- LÓGICA DE CICLOS ANUAIS (6 CICLOS/ANO) ---
 
 def obter_info_ciclo_atual():
@@ -349,7 +360,6 @@ def obter_resumo_filtros(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_
 # --- RESUMO POR AGENTE / GERAL ---
 
 def obter_lista_agentes():
-    """Retorna a lista de usuários únicos cadastrados nos lançamentos do diário."""
     inicializar_diario_db()
     conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
     cursor = conn.cursor()
@@ -360,10 +370,6 @@ def obter_lista_agentes():
 
 
 def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
-    """
-    Retorna o resumo dos lançamentos diários no período.
-    Se 'usuario' for especificado (e diferente de 'Todos'), filtra exclusivamente por esse agente.
-    """
     inicializar_diario_db()
     conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
     cursor = conn.cursor()
@@ -525,12 +531,22 @@ def obter_bytes_db():
     return b""
 
 
+def obter_bytes_diario():
+    inicializar_diario_db()
+    if os.path.exists(ARQUIVO_DIARIO_DB):
+        with open(ARQUIVO_DIARIO_DB, "rb") as f:
+            return f.read()
+    return b""
+
+
 def gerenciar_backup_db():
-    st.subheader("💾 Backup e Sincronização (`bairro.db`)")
+    st.subheader("💾 Backup e Sincronização de Bancos de Dados")
+
+    st.markdown("##### 📍 Banco de Bairros/Imóveis (`bairro.db`)")
     col_down, col_up, col_sync = st.columns(3)
 
     with col_down:
-        st.markdown("**1. Baixar banco local**")
+        st.markdown("**1. Baixar bairro.db**")
         bytes_db = obter_bytes_db()
         st.download_button(
             label="⬇️ Baixar bairro.db",
@@ -541,7 +557,7 @@ def gerenciar_backup_db():
         )
 
     with col_up:
-        st.markdown("**2. Enviar arquivo do computador**")
+        st.markdown("**2. Enviar bairro.db**")
         arquivo_enviado = st.file_uploader(
             "Selecione um arquivo .db local",
             type=["db", "sqlite", "sqlite3"],
@@ -549,18 +565,57 @@ def gerenciar_backup_db():
             label_visibility="collapsed"
         )
         if arquivo_enviado is not None:
-            if st.button("⬆ Restaurar/Substituir via Upload", use_container_width=True):
+            if st.button("⬆ Restaurar bairro.db", use_container_width=True):
                 try:
                     with open(ARQUIVO_DB_BAIRRO, "wb") as f:
                         f.write(arquivo_enviado.getbuffer())
                     enviar_db_para_dropbox()
-                    st.success("✅ Banco de dados atualizado e enviado para o Dropbox com sucesso!")
+                    st.success("✅ Banco de bairros atualizado e enviado para o Dropbox!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"❌ Erro ao salvar o arquivo enviado: {e}")
+                    st.error(f"❌ Erro ao salvar o arquivo: {e}")
 
     with col_sync:
-        st.markdown("**3. Sincronizar via Dropbox**")
+        st.markdown("**3. Sincronização Nuvem**")
         if st.button("🔄 Restaurar da Nuvem", use_container_width=True):
             carregar_db_do_dropbox(forcar=True)
             st.rerun()
+
+    st.markdown("---")
+    st.markdown("##### 📋 Banco de Lançamentos Diários (`diario.db`)")
+    
+    col_d_down, col_d_limpar = st.columns(2)
+
+    with col_d_down:
+        st.markdown("**Baixar Histórico de Lançamentos**")
+        bytes_diario = obter_bytes_diario()
+        st.download_button(
+            label="⬇️ Baixar diario.db",
+            data=bytes_diario,
+            file_name="diario.db",
+            mime="application/x-sqlite3",
+            use_container_width=True
+        )
+
+    with col_d_limpar:
+        st.markdown("**⚠️ Limpar/Zerar Registros do Diário**")
+        if "confirmar_limpeza_diario" not in st.session_state:
+            st.session_state["confirmar_limpeza_diario"] = False
+
+        if not st.session_state["confirmar_limpeza_diario"]:
+            if st.button("🗑️ Limpar diario.db", type="secondary", use_container_width=True):
+                st.session_state["confirmar_limpeza_diario"] = True
+                st.rerun()
+        else:
+            st.warning("⚠️ **ATENÇÃO:** Isso apagará PERMANENTEMENTE todos os lançamentos diários salvos!")
+            c_sim, c_nao = st.columns(2)
+            with c_sim:
+                if st.button("🔴 Sim, Limpar Tudo", use_container_width=True):
+                    limpar_diario_db()
+                    st.session_state["confirmar_limpeza_diario"] = False
+                    st.success("✅ O banco diario.db foi limpo com sucesso!")
+                    st.rerun()
+            with c_nao:
+                if st.button("❌ Cancelar", use_container_width=True):
+                    st.session_state["confirmar_limpeza_diario"] = False
+                    st.rerun()
