@@ -1,9 +1,11 @@
-import sqlite3
+import datetime
 import os
 import re
-import streamlit as st
+import sqlite3
 import dropbox
 from dropbox.exceptions import ApiError
+import pandas as pd
+import streamlit as st
 
 # --- CONFIGURAÇÕES DE BANCO DE DADOS E DROPBOX ---
 ARQUIVO_DB_BAIRRO = "bairro.db"
@@ -12,21 +14,23 @@ CAMINHO_DROPBOX_BAIRRO = "/bairro.db"
 ARQUIVO_DIARIO_DB = "diario.db"
 CAMINHO_DROPBOX_DIARIO = "/diario.db"
 
-# Credenciais do Dropbox
 DROPBOX_APP_KEY = st.secrets.get("DROPBOX_APP_KEY", "q0viamdueua22be")
 DROPBOX_APP_SECRET = st.secrets.get("DROPBOX_APP_SECRET", "mz2eaymu9r0jrop")
-DROPBOX_REFRESH_TOKEN = st.secrets.get("DROPBOX_REFRESH_TOKEN", "VHxefblYYMcAAAAAAAAAAXo_fNemEsw_A-sP0lEh3C2YB2kphW9rTfdB6d_sTe5B")
+DROPBOX_REFRESH_TOKEN = st.secrets.get(
+    "DROPBOX_REFRESH_TOKEN",
+    "VHxefblYYMcAAAAAAAAAAXo_fNemEsw_A-sP0lEh3C2YB2kphW9rTfdB6d_sTe5B",
+)
 
 
 # --- CONEXÃO DROPBOX ---
 
+
 def obter_cliente_dropbox():
-    """Retorna uma instância autenticada da API do Dropbox."""
     try:
         dbx = dropbox.Dropbox(
             app_key=DROPBOX_APP_KEY,
             app_secret=DROPBOX_APP_SECRET,
-            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN
+            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
         )
         return dbx
     except Exception as e:
@@ -35,7 +39,6 @@ def obter_cliente_dropbox():
 
 
 def carregar_db_do_dropbox(forcar=False):
-    """Baixa o banco de dados bairro.db do Dropbox."""
     db_cliente = obter_cliente_dropbox()
     if not db_cliente:
         return
@@ -47,18 +50,18 @@ def carregar_db_do_dropbox(forcar=False):
                 f.write(resposta.content)
             st.toast("📥 Banco de dados restaurado do Dropbox!", icon="🔄")
         except ApiError:
-            st.warning("⚠️ Arquivo 'bairro.db' não encontrado na nuvem. Criando novo local.")
+            st.warning(
+                "⚠️ Arquivo 'bairro.db' não encontrado na nuvem. Criando novo local."
+            )
         except Exception as e:
             st.error(f"❌ Erro ao restaurar banco do Dropbox: {e}")
 
 
 def sincronizar_banco():
-    """Alias/Atalho para baixar o banco do Dropbox."""
     carregar_db_do_dropbox()
 
 
 def enviar_db_para_dropbox():
-    """Sobe a versão atualizada do bairro.db para o Dropbox."""
     db_cliente = obter_cliente_dropbox()
     if not db_cliente:
         return False
@@ -69,7 +72,7 @@ def enviar_db_para_dropbox():
                 db_cliente.files_upload(
                     f.read(),
                     CAMINHO_DROPBOX_BAIRRO,
-                    mode=dropbox.files.WriteMode.overwrite
+                    mode=dropbox.files.WriteMode.overwrite,
                 )
             st.toast("☁️ Alterações salvas no Dropbox!", icon="✅")
             return True
@@ -81,8 +84,8 @@ def enviar_db_para_dropbox():
 
 # --- GESTÃO DO DIARIO.DB ---
 
+
 def inicializar_diario_db():
-    """Cria a tabela no diario.db se não existir."""
     conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
     cursor = conn.cursor()
     cursor.execute("""
@@ -107,7 +110,6 @@ def inicializar_diario_db():
 
 
 def enviar_diario_dropbox():
-    """Envia o arquivo diario.db para o Dropbox."""
     db_cliente = obter_cliente_dropbox()
     if not db_cliente:
         return False
@@ -118,9 +120,9 @@ def enviar_diario_dropbox():
                 db_cliente.files_upload(
                     f.read(),
                     CAMINHO_DROPBOX_DIARIO,
-                    mode=dropbox.files.WriteMode.overwrite
+                    mode=dropbox.files.WriteMode.overwrite,
                 )
-            st.toast("☁️️ Diário sincronizado com o Dropbox!", icon="✅")
+            st.toast("☁️ Diário sincronizado com o Dropbox!", icon="✅")
             return True
         except Exception as e:
             st.error(f"❌ Erro ao enviar diario.db para o Dropbox: {e}")
@@ -129,26 +131,70 @@ def enviar_diario_dropbox():
 
 
 def salvar_registro_diario(dados_registro):
-    """Insere um novo registro no diario.db e sincroniza no Dropbox."""
     inicializar_diario_db()
     conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO diario (
             imovel_id, bairro, quarteirao, rua, num_imovel, tipo_imovel,
             situacao, depositos_eliminados, fez_tratamento, depositos_tratados, gramas_medicamento
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, dados_registro)
+    """,
+        dados_registro,
+    )
     conn.commit()
     conn.close()
 
     enviar_diario_dropbox()
 
 
-# --- INICIALIZAÇÃO DO BANCO BAIRRO ---
+# --- LÓGICA DE CICLOS ANUAIS (1 A 6) ---
+
+
+def obter_info_ciclo_atual():
+    """
+    Retorna o número do ciclo (1 a 6), o ano, e as datas de início e fim.
+    Reinicia no Ciclo 1 todo dia 1º de Janeiro.
+    
+    1º Ciclo: Jan/Fev
+    2º Ciclo: Mar/Abr
+    3º Ciclo: Mai/Jun
+    4º Ciclo: Jul/Ago
+    5º Ciclo: Set/Out
+    6º Ciclo: Nov/Dez
+    """
+    hoje = datetime.date.today()
+    ano = hoje.year
+    mes = hoje.month
+
+    # Número do ciclo de 1 a 6
+    num_ciclo = (mes - 1) // 2 + 1
+
+    # Mês de início (1, 3, 5, 7, 9 ou 11) e fim do ciclo
+    mes_inicio = (num_ciclo - 1) * 2 + 1
+    mes_fim = mes_inicio + 1
+
+    # Data de início do ciclo
+    data_inicio = datetime.date(ano, mes_inicio, 1).strftime("%Y-%m-%d 00:00:00")
+
+    # Data de fim do ciclo
+    if mes_fim in [4, 6, 9, 11]:
+        ultimo_dia = 30
+    elif mes_fim == 2:
+        ultimo_dia = 29 if (ano % 4 == 0 and (ano % 100 != 0 or ano % 400 == 0)) else 28
+    else:
+        ultimo_dia = 31
+
+    data_fim = datetime.date(ano, mes_fim, ultimo_dia).strftime("%Y-%m-%d 23:59:59")
+
+    return num_ciclo, ano, data_inicio, data_fim
+
+
+# --- INICIALIZAÇÃO E CONSULTAS ---
+
 
 def init_db_bairro():
-    """Inicializa a tabela de quarteirões."""
     if "db_sincronizado_inicio" not in st.session_state:
         carregar_db_do_dropbox()
         st.session_state["db_sincronizado_inicio"] = True
@@ -170,48 +216,9 @@ def init_db_bairro():
     conn.close()
 
 
-# --- CRUD BAIRRO ---
-
-def salvar_quarteirao(bairro, quarteirao, rua, lado, imovel, tipo):
-    init_db_bairro()
-    conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO quarteiroes (nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (bairro, quarteirao, rua, lado, imovel, tipo))
-    conn.commit()
-    conn.close()
-    enviar_db_para_dropbox()
-
-
-def atualizar_quarteirao(id_reg, bairro, quarteirao, rua, lado, imovel, tipo):
-    init_db_bairro()
-    conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE quarteiroes
-        SET nome_bairro = ?, num_quarteirao = ?, nome_rua = ?, num_lado = ?, num_imovel = ?, tipo_imovel = ?
-        WHERE id = ?
-    """, (bairro, quarteirao, rua, lado, imovel, tipo, id_reg))
-    conn.commit()
-    conn.close()
-    enviar_db_para_dropbox()
-
-
-def excluir_quarteirao(id_reg):
-    init_db_bairro()
-    conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM quarteiroes WHERE id = ?", (id_reg,))
-    conn.commit()
-    conn.close()
-    enviar_db_para_dropbox()
-
-
-# --- CONSULTAS SQL ---
-
-def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
+def montar_clausula_where(
+    f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""
+):
     sql_where = " WHERE 1=1"
     params = []
 
@@ -220,7 +227,11 @@ def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f
         params.append(f"%{f_bairro.strip()}%")
 
     if f_quarteirao and f_quarteirao.strip():
-        lista_q = [q.strip() for q in re.split(r'[\s,]+', f_quarteirao.strip()) if q.strip()]
+        lista_q = [
+            q.strip()
+            for q in re.split(r"[\s,]+", f_quarteirao.strip())
+            if q.strip()
+        ]
         if lista_q:
             placeholders = ",".join(["?"] * len(lista_q))
             sql_where += f" AND num_quarteirao IN ({placeholders})"
@@ -241,13 +252,44 @@ def montar_clausula_where(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f
     return sql_where, params
 
 
-def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
+def listar_quarteiroes_com_status(
+    f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""
+):
     init_db_bairro()
+    inicializar_diario_db()
+
+    num_ciclo, ano, data_inicio, data_fim = obter_info_ciclo_atual()
+
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
 
-    sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
-    sql = "SELECT id, nome_bairro, num_quarteirao, nome_rua, num_lado, num_imovel, tipo_imovel FROM quarteiroes" + sql_where + " ORDER BY num_quarteirao ASC, num_lado ASC, id ASC"
+    # Anexa diario.db para consulta unificada
+    cursor.execute(f"ATTACH DATABASE '{ARQUIVO_DIARIO_DB}' AS db_diario")
+
+    sql_where, params = montar_clausula_where(
+        f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
+    )
+
+    sql = f"""
+        SELECT 
+            q.id, 
+            q.nome_bairro, 
+            q.num_quarteirao, 
+            q.nome_rua, 
+            q.num_lado, 
+            q.num_imovel, 
+            q.tipo_imovel,
+            d.situacao AS status_ciclo
+        FROM quarteiroes q
+        LEFT JOIN (
+            SELECT imovel_id, situacao, MAX(data_registro)
+            FROM db_diario.diario
+            WHERE data_registro BETWEEN '{data_inicio}' AND '{data_fim}'
+            GROUP BY imovel_id
+        ) d ON q.id = d.imovel_id
+        {sql_where}
+        ORDER BY q.num_quarteirao ASC, q.num_lado ASC, q.id ASC
+    """
 
     cursor.execute(sql, params)
     dados = cursor.fetchall()
@@ -255,115 +297,28 @@ def listar_quarteiroes(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_ti
     return dados
 
 
-def obter_resumo_filtros(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
+def obter_resumo_filtros(
+    f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""
+):
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
 
-    sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
+    sql_where, params = montar_clausula_where(
+        f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
+    )
 
     sql_total = "SELECT COUNT(*) FROM quarteiroes" + sql_where
     cursor.execute(sql_total, params)
     total_imoveis = cursor.fetchone()[0]
 
-    sql_por_tipo = "SELECT tipo_imovel, COUNT(*) FROM quarteiroes" + sql_where + " GROUP BY tipo_imovel"
+    sql_por_tipo = (
+        "SELECT tipo_imovel, COUNT(*) FROM quarteiroes"
+        + sql_where
+        + " GROUP BY tipo_imovel"
+    )
     cursor.execute(sql_por_tipo, params)
     por_tipo = dict(cursor.fetchall())
 
     conn.close()
     return total_imoveis, por_tipo
-
-
-# --- INTERFACE DE CONFIRMAÇÃO & BACKUP ---
-
-def confirmar_e_atualizar(id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val):
-    chave_edicao = f"confirmar_edicao_{id_sel}"
-    if st.button("💾 Salvar Alterações", use_container_width=True, key=f"btn_salvar_{id_sel}"):
-        st.session_state[chave_edicao] = True
-        st.session_state[f"confirmar_exclusao_{id_sel}"] = False
-
-    if st.session_state.get(chave_edicao, False):
-        st.info(f"❓ Tem certeza de que deseja atualizar o **Registro ID {id_sel}**?")
-        col_sim, col_nao = st.columns(2)
-        with col_sim:
-            if st.button("✅ Confirmar Atualização", key=f"sim_edit_{id_sel}", use_container_width=True):
-                atualizar_quarteirao(id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val)
-                st.session_state[chave_edicao] = False
-                st.success(f"Registro ID {id_sel} atualizado com sucesso!")
-                st.rerun()
-        with col_nao:
-            if st.button("❌ Cancelar", key=f"cancela_edit_{id_sel}", use_container_width=True):
-                st.session_state[chave_edicao] = False
-                st.rerun()
-
-
-def confirmar_e_excluir(id_sel):
-    chave_exclusao = f"confirmar_exclusao_{id_sel}"
-    if st.button("🗑️ Excluir Imóvel", use_container_width=True, key=f"btn_excluir_{id_sel}"):
-        st.session_state[chave_exclusao] = True
-        st.session_state[f"confirmar_edicao_{id_sel}"] = False
-
-    if st.session_state.get(chave_exclusao, False):
-        st.warning(f"⚠️ **ATENÇÃO:** Tem certeza de que deseja excluir o **Registro ID {id_sel}**?")
-        col_sim, col_nao = st.columns(2)
-        with col_sim:
-            if st.button("🔴 Sim, Excluir Registro", key=f"sim_exc_{id_sel}", use_container_width=True):
-                excluir_quarteirao(id_sel)
-                st.session_state[chave_exclusao] = False
-                st.success(f"Registro ID {id_sel} excluído com sucesso!")
-                st.rerun()
-        with col_nao:
-            if st.button("❌ Cancelar", key=f"cancela_exc_{id_sel}", use_container_width=True):
-                st.session_state[chave_exclusao] = False
-                st.rerun()
-
-
-def obter_bytes_db():
-    init_db_bairro()
-    if os.path.exists(ARQUIVO_DB_BAIRRO):
-        with open(ARQUIVO_DB_BAIRRO, "rb") as f:
-            return f.read()
-    return b""
-
-
-def gerenciar_backup_db():
-    st.subheader("💾 Backup e Sincronização (`bairro.db`)")
-    col_down, col_up, col_sync = st.columns(3)
-
-    with col_down:
-        st.markdown("**1. Baixar banco local**")
-        bytes_db = obter_bytes_db()
-        st.download_button(
-            label="⬇️ Baixar bairro.db",
-            data=bytes_db,
-            file_name="bairro.db",
-            mime="application/x-sqlite3",
-            use_container_width=True
-        )
-
-    with col_up:
-        st.markdown("**2. Enviar arquivo do computador**")
-        arquivo_enviado = st.file_uploader(
-            "Selecione um arquivo .db local",
-            type=["db", "sqlite", "sqlite3"],
-            key="uploader_db_bairro",
-            label_visibility="collapsed"
-        )
-        if arquivo_enviado is not None:
-            if st.button("⬆️ Restaurar/Substituir via Upload", use_container_width=True):
-                try:
-                    with open(ARQUIVO_DB_BAIRRO, "wb") as f:
-                        f.write(arquivo_enviado.getbuffer())
-                    enviar_db_para_dropbox()
-                    st.success("✅ Banco de dados atualizado e enviado para o Dropbox com sucesso!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Erro ao salvar o arquivo enviado: {e}")
-
-    with col_sync:
-        st.markdown("**3. Sincronizar via Dropbox**")
-        if st.button("🔄 Restaurar da Nuvem", use_container_width=True):
-            if os.path.exists(ARQUIVO_DB_BAIRRO):
-                os.remove(ARQUIVO_DB_BAIRRO)
-            carregar_db_do_dropbox(forcar=True)
-            st.rerun()
