@@ -373,7 +373,7 @@ else:
 
                 # --- CÁLCULO DOS NOVOS INDICADORES ---
                 total_trabalhados = resumo["total_normal"] + resumo["total_recuperado"]
-                total_informados = resumo["total_normal"] + resumo["total_fechado"] - resumo["total_recuperado"]
+                total_informados = resumo["total_normal"] + resumo["total_fechado"]
 
                 st.markdown(f"##### 📍 Situação dos Imóveis Lançados ({agente_selecionado})")
                 m1, m2, m3, m4 = st.columns(4)
