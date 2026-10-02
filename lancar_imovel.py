@@ -5,6 +5,24 @@ import streamlit as st
 import bairro
 
 
+def colorir_linha_por_situacao(row):
+    """
+    Aplica verde para 'Normal' e vermelho para 'Fechado' no ciclo atual.
+    Aplica fundo normal (sem cor) caso não haja lançamento no ciclo.
+    """
+    situacao = row.get("Status Ciclo")
+
+    if situacao == "Normal":
+        # Verde suave com texto escuro para boa leitura
+        return ["background-color: #d4edda; color: #155724; font-weight: bold;"] * len(row)
+    elif situacao == "Fechado":
+        # Vermelho suave com texto escuro
+        return ["background-color: #f8d7da; color: #721c24; font-weight: bold;"] * len(row)
+    else:
+        # Fundo padrão (Sem cor no ciclo)
+        return [""] * len(row)
+
+
 def renderizar_tela_consulta():
     st.title("📍 Mapeamento Territorial - Consulta e Lançamento Diário")
 
@@ -34,8 +52,8 @@ def renderizar_tela_consulta():
             key="f_tipo_user",
         )
 
-    # Busca de dados e resumo dos filtros após o download do Dropbox
-    dados = bairro.listar_quarteiroes(
+    # Busca de dados com o status do ciclo bimestral ativo
+    dados = bairro.listar_quarteiroes_com_status(
         f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
     )
     total_imoveis, detalhe_tipos = bairro.obter_resumo_filtros(
@@ -56,6 +74,13 @@ def renderizar_tela_consulta():
 
     st.markdown("---")
     st.subheader(f"Lista de Registros ({len(dados)})")
+    
+    # Legenda das cores
+    col_leg1, col_leg2, col_leg3 = st.columns(3)
+    col_leg1.markdown("🟩 **Verde**: Lançado como *Normal* no ciclo atual")
+    col_leg2.markdown("🟥 **Vermelho**: Lançado como *Fechado* no ciclo atual")
+    col_leg3.markdown("⬜ **Branco**: Sem lançamento no ciclo atual")
+
     st.info("💡 Clique em uma linha da tabela para realizar o lançamento.")
 
     if dados:
@@ -69,19 +94,29 @@ def renderizar_tela_consulta():
                 "Lado",
                 "Nº Imóvel",
                 "Tipo",
+                "Status Ciclo",
             ],
         )
 
-        # Habilita seleção de 1 linha na tabela
+        # Aplica estilo de cores por linha
+        df_estilizado = df.style.apply(colorir_linha_por_situacao, axis=1)
+
+        # Exibe a tabela interativa com as cores aplicadas
         evento_selecao = st.dataframe(
-            df,
+            df_estilizado,
             use_container_width=True,
             hide_index=True,
             selection_mode="single-row",
             on_select="rerun",
+            column_config={
+                "Status Ciclo": st.column_config.TextColumn(
+                    "Status no Ciclo Atual",
+                    help="Situação do último lançamento feito no ciclo bimestral corrente.",
+                )
+            },
         )
 
-        # Verifica se alguma linha foi selecionada pelo usuário
+        # Captura a seleção de linha do usuário
         linhas_selecionadas = evento_selecao.get("selection", {}).get(
             "rows", []
         )
@@ -95,7 +130,7 @@ def renderizar_tela_consulta():
                 f"📝 Lançamento Diário para o Imóvel ID #{imovel_sel['ID']}"
             )
 
-            # Exibe resumo do imóvel selecionado
+            # Resumo do imóvel
             c1, c2, c3, c4 = st.columns(4)
             c1.markdown(f"**Bairro:** {imovel_sel['Bairro']}")
             c2.markdown(f"**Quarteirão:** {imovel_sel['Quarteirão']}")
@@ -180,11 +215,12 @@ def renderizar_tela_consulta():
                             gramas_medicamento,
                         )
 
-                        # Salva no banco SQLite local (diario.db) e envia para o Dropbox
+                        # Salva e força a recarga da página para atualizar as cores imediatamente
                         bairro.salvar_registro_diario(dados_registro)
                         st.success(
                             "Lançamento salvo e sincronizado no Dropbox com sucesso!"
                         )
+                        st.rerun()
 
     else:
         st.info("Nenhum imóvel corresponde aos filtros selecionados.")
