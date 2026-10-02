@@ -231,7 +231,6 @@ else:
                     key="f_tipo",
                 )
 
-            # ALTERADO AQUI PARA USAR A NOVA FUNÇÃO DETALHADA COM STATUS
             dados_detalhados = bairro.listar_quarteiroes_com_status_detalhado(
                 f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
             )
@@ -271,14 +270,13 @@ else:
                     ],
                 )
 
-                # Aplicação da coloração condicional e exibição do dataframe estilizado
                 df_estilizado = df.style.apply(
                     bairro.colorir_linha_por_situacao, axis=1
                 )
                 st.dataframe(df_estilizado, use_container_width=True, hide_index=True)
 
                 st.markdown("---")
-                st.subheader("⚙️️ Gerenciar Registro Selecionado")
+                st.subheader("⚙ Gerenciar Registro Selecionado")
 
                 opcoes_imoveis = {
                     f"ID {row[0]} | Bairro: {row[1]} | Quart.: {row[2]} | Rua: {row[3]} | Imóvel: {row[5]}": row
@@ -347,7 +345,6 @@ else:
         with aba_resumo_admin:
             st.subheader("📊 Resumo de Lançamentos por Período e Agente")
 
-            # Filtros do Período e Agente
             col_d1, col_d2, col_d3 = st.columns(3)
             with col_d1:
                 data_inicio = st.date_input(
@@ -374,12 +371,21 @@ else:
             else:
                 resumo = bairro.obter_resumo_por_datas(data_inicio, data_fim, usuario=agente_selecionado)
 
+                # --- CÁLCULO DOS NOVOS INDICADORES ---
+                total_trabalhados = resumo["total_normal"] + resumo["total_recuperado"]
+                total_informados = resumo["total_normal"] + resumo["total_fechado"] - resumo["total_recuperado"]
+
                 st.markdown(f"##### 📍 Situação dos Imóveis Lançados ({agente_selecionado})")
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Total Lançados", resumo["total_lancados"])
                 m2.metric("Normal 🟩", resumo["total_normal"])
                 m3.metric("Fechado 🟥", resumo["total_fechado"])
                 m4.metric("Recuperado 🟩", resumo["total_recuperado"])
+
+                # --- EXIBIÇÃO DOS NOVOS INDICADORES ---
+                mi1, mi2 = st.columns(2)
+                mi1.metric("Imóveis Trabalhados", total_trabalhados)
+                mi2.metric("Imóveis Informados", total_informados)
 
                 st.markdown("##### 🏠 Detalhamento por Tipo de Imóvel")
                 t1, t2, t3, t4 = st.columns(4)
