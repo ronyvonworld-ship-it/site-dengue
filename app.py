@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import os
 import sqlite3
@@ -96,7 +97,6 @@ if not st.session_state["logado"]:
                     st.session_state["logado"] = True
                     st.session_state["usuario_atual"] = usuario_input.strip()
                     st.session_state["tipo_usuario"] = tipo
-                    # Marca a flag para baixar o banco imediatamente ao entrar
                     st.session_state["precisa_carregar_db"] = True
                     st.rerun()
                 else:
@@ -108,7 +108,7 @@ else:
     if st.session_state.get("precisa_carregar_db", False):
         with st.spinner("Sincronizando banco de dados com o Dropbox..."):
             try:
-                bairro.carregar_db_do_dropbox()
+                bairro.carregar_db_do_dropbox(forcar=True)
             except Exception as e:
                 st.error(f"Erro na sincronização inicial do Dropbox: {e}")
         st.session_state["precisa_carregar_db"] = False
@@ -121,7 +121,7 @@ else:
         with st.spinner("Atualizando arquivo..."):
             if os.path.exists("bairro.db"):
                 os.remove("bairro.db")
-            bairro.carregar_db_do_dropbox()
+            bairro.carregar_db_do_dropbox(forcar=True)
             st.sidebar.success("Sincronização concluída!")
             st.rerun()
 
@@ -136,10 +136,11 @@ else:
     if st.session_state["tipo_usuario"] == "Administrador":
         st.title("📍 Mapeamento Territorial de Quarteirões")
 
-        aba_cadastro, aba_registros, aba_backup = st.tabs(
+        aba_cadastro, aba_registros, aba_resumo_admin, aba_backup = st.tabs(
             [
                 "➕ Cadastrar Imóvel",
                 "🔍 Consultar, Editar e Excluir",
+                "📊 Resumo & Quarteirões",
                 "💾 Backup / Restaurar DB",
             ]
         )
@@ -323,7 +324,81 @@ else:
             else:
                 st.info("Nenhum imóvel corresponde aos filtros selecionados.")
 
-        # TAB 3: Backup
+        # TAB 3: Resumo & Conclusão de Quarteirão
+        with aba_resumo_admin:
+            st.subheader("📊 Resumo de Lançamentos e Status por Período")
+
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                data_inicio = st.date_input(
+                    "Data Inicial",
+                    value=datetime.date.today(),
+                    key="admin_d_inicio",
+                )
+            with col_d2:
+                data_fim = st.date_input(
+                    "Data Final",
+                    value=datetime.date.today(),
+                    key="admin_d_fim",
+                )
+
+            if data_inicio > data_fim:
+                st.error("⚠️ A data inicial não pode ser posterior à data final.")
+            else:
+                resumo = bairro.obter_resumo_por_datas(data_inicio, data_fim)
+
+                st.markdown("##### 📍 Imóveis Lançados no Período")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Total Lançados", resumo["total_lancados"])
+                m2.metric("Normal 🟩", resumo["total_normal"])
+                m3.metric("Fechado 🟥", resumo["total_fechado"])
+                m4.metric("Recuperado 🟩", resumo["total_recuperado"])
+
+                st.markdown("##### 🧪 Depósitos e Medicamentos")
+                m5, m6, m7 = st.columns(3)
+                m5.metric("Depósitos Eliminados", resumo["total_eliminados"])
+                m6.metric("Depósitos Tratados", resumo["total_tratados"])
+                m7.metric("Medicamento (g)", f"{resumo['total_gramas']:.2f} g")
+
+            st.markdown("---")
+            st.subheader("🏁 Verificação de Conclusão de Quarteirão")
+
+            col_q1, col_q2 = st.columns(2)
+            with col_q1:
+                bairro_chk = st.text_input("Bairro", key="chk_bairro_admin")
+            with col_q2:
+                quarteirao_chk = st.text_input(
+                    "Nº do Quarteirão", key="chk_quart_admin"
+                )
+
+            if st.button(
+                "🔍 Verificar Status do Quarteirão", use_container_width=True
+            ):
+                if not bairro_chk or not quarteirao_chk:
+                    st.warning(
+                        "Preencha o nome do Bairro e o Nº do Quarteirão para verificar."
+                    )
+                else:
+                    concluido, lancados, total = (
+                        bairro.verificar_status_quarteirao(
+                            bairro_chk, quarteirao_chk
+                        )
+                    )
+                    if total == 0:
+                        st.info(
+                            f"Nenhum imóvel cadastrado no Bairro '{bairro_chk}', Quarteirão '{quarteirao_chk}'."
+                        )
+                    elif concluido:
+                        st.success(
+                            f"✅ **Quarteirão CONCLUÍDO!** Todos os **{total}** imóveis foram visitados e lançados no ciclo atual."
+                        )
+                    else:
+                        pendentes = total - lancados
+                        st.error(
+                            f"❌ **Quarteirão INCOMPLETO!** Lançados: **{lancados}** de **{total}** imóveis ({pendentes} pendentes)."
+                        )
+
+        # TAB 4: Backup
         with aba_backup:
             bairro.gerenciar_backup_db()
 
