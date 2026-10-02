@@ -82,7 +82,7 @@ def enviar_db_para_dropbox():
                     CAMINHO_DROPBOX_BAIRRO,
                     mode=dropbox.files.WriteMode.overwrite
                 )
-            st.toast("☁️ Alterações salvas no Dropbox!", icon="✅")
+            st.toast("☁️️ Alterações salvas no Dropbox!", icon="✅")
             return True
         except Exception as e:
             st.error(f"❌ Erro ao enviar banco para o Dropbox: {e}")
@@ -640,7 +640,7 @@ def gerenciar_backup_db():
         )
 
     with col_d_limpar:
-        st.markdown("**⚠️️ Limpar/Zerar Registros do Diário**")
+        st.markdown("**⚠ Limpar/Zerar Registros do Diário**")
         if "confirmar_limpeza_diario" not in st.session_state:
             st.session_state["confirmar_limpeza_diario"] = False
 
