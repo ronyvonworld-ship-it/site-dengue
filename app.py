@@ -65,14 +65,18 @@ st.set_page_config(
     page_title="Sistema de Mapeamento", page_icon="📍", layout="wide"
 )
 
+# --- Gerenciamento de Estado ---
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "usuario_atual" not in st.session_state:
     st.session_state["usuario_atual"] = ""
 if "tipo_usuario" not in st.session_state:
     st.session_state["tipo_usuario"] = ""
+if "precisa_carregar_db" not in st.session_state:
+    st.session_state["precisa_carregar_db"] = False
 
 
+# --- TELA DE LOGIN ---
 if not st.session_state["logado"]:
     st.title("🔒 Acesso ao Sistema")
     st.markdown("---")
@@ -92,23 +96,27 @@ if not st.session_state["logado"]:
                     st.session_state["logado"] = True
                     st.session_state["usuario_atual"] = usuario_input.strip()
                     st.session_state["tipo_usuario"] = tipo
-
-                    # =========================================================
-                    # CARREGAMENTO AUTOMÁTICO DO DROPBOX APÓS LOGIN BEM-SUCEDIDO
-                    # =========================================================
-                    with st.spinner("Sincronizando dados com o Dropbox..."):
-                        bairro.carregar_db_do_dropbox()
-
+                    # Marca a flag para baixar o banco imediatamente ao entrar
+                    st.session_state["precisa_carregar_db"] = True
                     st.rerun()
                 else:
                     st.error(msg)
 
+# --- ÁREA LOGADA ---
 else:
+    # Executa a restauração do Dropbox uma única vez logo após o login
+    if st.session_state.get("precisa_carregar_db", False):
+        with st.spinner("Sincronizando banco de dados com o Dropbox..."):
+            try:
+                bairro.carregar_db_do_dropbox()
+            except Exception as e:
+                st.error(f"Erro na sincronização inicial do Dropbox: {e}")
+        st.session_state["precisa_carregar_db"] = False
+
     # --- Sidebar ---
     st.sidebar.markdown(f"**Usuário:** `{st.session_state['usuario_atual']}`")
     st.sidebar.markdown(f"**Perfil:** `{st.session_state['tipo_usuario']}`")
 
-    # Botão opcional para recarregar do Dropbox manualmente a qualquer momento
     if st.sidebar.button("🔄 Sincronizar com Dropbox", use_container_width=True):
         with st.spinner("Atualizando arquivo..."):
             if os.path.exists("bairro.db"):
@@ -121,6 +129,7 @@ else:
         st.session_state["logado"] = False
         st.session_state["usuario_atual"] = ""
         st.session_state["tipo_usuario"] = ""
+        st.session_state["precisa_carregar_db"] = False
         st.rerun()
 
     # --- Controle de Acesso por Tipo de Usuário ---
