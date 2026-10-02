@@ -9,10 +9,10 @@ from dropbox.exceptions import ApiError
 ARQUIVO_DB_BAIRRO = "bairro.db"
 CAMINHO_DROPBOX = "/bairro.db"
 
-# Credenciais do Dropbox
-DROPBOX_APP_KEY = st.secrets.get("DROPBOX_APP_KEY", "q0viamdueua22be")
-DROPBOX_APP_SECRET = st.secrets.get("DROPBOX_APP_SECRET", "mz2eaymu9r0jrop")
-DROPBOX_REFRESH_TOKEN = st.secrets.get("DROPBOX_REFRESH_TOKEN", "VHxefblYYMcAAAAAAAAAAXo_fNemEsw_A-sP0lEh3C2YB2kphW9rTfdB6d_sTe5B")
+# Busca credenciais puramente do st.secrets (sem expor dados sensíveis no código)
+DROPBOX_APP_KEY = st.secrets.get("DROPBOX_APP_KEY", "")
+DROPBOX_APP_SECRET = st.secrets.get("DROPBOX_APP_SECRET", "")
+DROPBOX_REFRESH_TOKEN = st.secrets.get("DROPBOX_REFRESH_TOKEN", "")
 
 
 # --- FUNÇÕES DE CONEXÃO E SINCRONIZAÇÃO COM REFRESH TOKEN ---
@@ -22,6 +22,10 @@ def obter_cliente_dropbox():
     Retorna uma instância autenticada da API do Dropbox utilizando
     Refresh Token para renovação automática do token de acesso.
     """
+    if not all([DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN]):
+        st.error("❌ Credenciais do Dropbox não foram configuradas no st.secrets!")
+        return None
+
     try:
         dbx = dropbox.Dropbox(
             app_key=DROPBOX_APP_KEY,
@@ -34,23 +38,25 @@ def obter_cliente_dropbox():
         return None
 
 
-def carregar_db_do_dropbox():
-    """Baixa o banco de dados do Dropbox caso ele ainda não exista localmente (ao sair da hibernação)."""
+def carregar_db_do_dropbox(forcar_download=False):
+    """
+    Baixa o banco de dados do Dropbox.
+    Se forcar_download=True, ele substitui o banco local pelo da nuvem.
+    """
     db_cliente = obter_cliente_dropbox()
     if not db_cliente:
         return
 
-    # Se o arquivo local não existir (ex: pós-hibernação), faz o download do Dropbox
-    if not os.path.exists(ARQUIVO_DB_BAIRRO):
-        try:
-            _, resposta = db_cliente.files_download(CAMINHO_DROPBOX)
-            with open(ARQUIVO_DB_BAIRRO, "wb") as f:
-                f.write(resposta.content)
-            st.toast("📥 Banco de dados restaurado do Dropbox com sucesso!", icon="🔄")
-        except ApiError as err:
-            st.warning("⚠️ Arquivo 'bairro.db' não encontrado na nuvem. Um novo banco local será criado.")
-        except Exception as e:
-            st.error(f"❌ Erro ao restaurar banco do Dropbox: {e}")
+    try:
+        # Faz o download do banco de dados mais recente do Dropbox
+        _, resposta = db_cliente.files_download(CAMINHO_DROPBOX)
+        with open(ARQUIVO_DB_BAIRRO, "wb") as f:
+            f.write(resposta.content)
+        st.toast("📥 Banco de dados sincronizado do Dropbox com sucesso!", icon="🔄")
+    except ApiError as err:
+        st.warning("⚠️ Arquivo 'bairro.db' não foi encontrado na nuvem. Um novo banco local será mantido/criado.")
+    except Exception as e:
+        st.error(f"❌ Erro ao baixar banco do Dropbox: {e}")
 
 
 def enviar_db_para_dropbox():
@@ -68,7 +74,7 @@ def enviar_db_para_dropbox():
                     CAMINHO_DROPBOX,
                     mode=dropbox.files.WriteMode.overwrite
                 )
-            st.toast("☁️️ Alterações salvas no Dropbox!", icon="✅")
+            st.toast("☁️ Alterações salvas no Dropbox!", icon="✅")
             return True
         except Exception as e:
             st.error(f"❌ Erro ao enviar banco de dados para o Dropbox: {e}")
@@ -79,9 +85,13 @@ def enviar_db_para_dropbox():
 # --- INICIALIZAÇÃO DO BANCO ---
 
 def init_db_bairro():
-    """Sincroniza na inicialização e cria a tabela caso não exista."""
+    """
+    Executado na inicialização da aplicação:
+    1. Baixa/sincroniza o banco de dados do Dropbox automaticamente no primeiro acesso da sessão.
+    2. Garante a criação da tabela local caso ela ainda não exista.
+    """
     if "db_sincronizado_inicio" not in st.session_state:
-        carregar_db_do_dropbox()
+        carregar_db_do_dropbox(forcar_download=True)
         st.session_state["db_sincronizado_inicio"] = True
 
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
@@ -325,7 +335,5 @@ def gerenciar_backup_db():
     with col_sync:
         st.markdown("**3. Sincronizar via Dropbox**")
         if st.button("🔄 Restaurar da Nuvem", use_container_width=True):
-            if os.path.exists(ARQUIVO_DB_BAIRRO):
-                os.remove(ARQUIVO_DB_BAIRRO)
-            carregar_db_do_dropbox()
+            carregar_db_do_dropbox(forcar_download=True)
             st.rerun()
