@@ -82,7 +82,7 @@ def enviar_db_para_dropbox():
                     CAMINHO_DROPBOX_BAIRRO,
                     mode=dropbox.files.WriteMode.overwrite
                 )
-            st.toast("☁️️ Alterações salvas no Dropbox!", icon="✅")
+            st.toast("☁ Alterações salvas no Dropbox!", icon="✅")
             return True
         except Exception as e:
             st.error(f"❌ Erro ao enviar banco para o Dropbox: {e}")
@@ -445,11 +445,21 @@ def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
     conn.close()
 
     if row:
+        total_normal = row[1] or 0
+        total_fechado = row[2] or 0
+        total_recuperado = row[3] or 0
+
+        # Novos cálculos solicitados
+        casas_trabalhadas = total_normal + total_recuperado
+        casas_informadas = total_normal + total_fechado - total_recuperado
+
         return {
             "total_lancados": row[0] or 0,
-            "total_normal": row[1] or 0,
-            "total_fechado": row[2] or 0,
-            "total_recuperado": row[3] or 0,
+            "total_normal": total_normal,
+            "total_fechado": total_fechado,
+            "total_recuperado": total_recuperado,
+            "casas_trabalhadas": casas_trabalhadas,
+            "casas_informadas": casas_informadas,
             "total_residencia": row[4] or 0,
             "total_comercio": row[5] or 0,
             "total_terreno": row[6] or 0,
@@ -463,6 +473,8 @@ def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
         "total_normal": 0,
         "total_fechado": 0,
         "total_recuperado": 0,
+        "casas_trabalhadas": 0,
+        "casas_informadas": 0,
         "total_residencia": 0,
         "total_comercio": 0,
         "total_terreno": 0,
