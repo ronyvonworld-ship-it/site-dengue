@@ -6,16 +6,14 @@ import bairro
 
 
 def renderizar_tela_consulta():
-    st.title("📍 Mapeamento Territorial - Consulta e Lançamento Diario")
+    st.title("📍 Mapeamento Territorial - Consulta e Lançamento Diário")
 
-    # Tenta sincronizar o banco inicial
-    try:
-        if hasattr(bairro, "sincronizar_banco"):
-            bairro.sincronizar_banco()
-        elif hasattr(bairro, "baixar_banco_dropbox"):
-            bairro.baixar_banco_dropbox()
-    except Exception as e:
-        st.warning(f"⚠️ Não foi possível sincronizar com o Dropbox: {e}")
+    # Garante que o arquivo bairro.db é baixado do Dropbox antes de carregar
+    with st.spinner("🔄 Carregando dados atualizados do Dropbox..."):
+        try:
+            bairro.carregar_db_do_dropbox(forcar=True)
+        except Exception as e:
+            st.warning(f"⚠️ Aviso de conexão com Dropbox: {e}")
 
     st.markdown("---")
     st.subheader("🔍 Filtros de Pesquisa")
@@ -36,7 +34,7 @@ def renderizar_tela_consulta():
             key="f_tipo_user",
         )
 
-    # Busca de dados e resumo dos filtros
+    # Busca de dados e resumo dos filtros após o download do Dropbox
     dados = bairro.listar_quarteiroes(
         f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo
     )
@@ -135,14 +133,14 @@ def renderizar_tela_consulta():
                     if fez_tratamento == "Sim":
                         col_trat1, col_trat2 = st.columns(2)
                         with col_trat1:
-                            # Limita o máximo de depósitos tratados ao total de eliminados
-                            max_tratados = max(1, depositos_eliminados)
                             depositos_tratados = st.number_input(
                                 f"Depósitos Tratados (Máx: {depositos_eliminados})",
                                 min_value=0,
                                 max_value=depositos_eliminados,
                                 step=1,
-                                value=min(1, depositos_eliminados),
+                                value=min(1, depositos_eliminados)
+                                if depositos_eliminados > 0
+                                else 0,
                                 help="O número de depósitos tratados não pode ser maior que o número de depósitos eliminados.",
                             )
 
@@ -159,7 +157,6 @@ def renderizar_tela_consulta():
                 )
 
                 if btn_salvar:
-                    # Validação de segurança
                     if (
                         situacao == "Normal"
                         and fez_tratamento == "Sim"
@@ -183,9 +180,11 @@ def renderizar_tela_consulta():
                             gramas_medicamento,
                         )
 
-                        # Salva no banco SQLite local e sincroniza no Dropbox
+                        # Salva no banco SQLite local (diario.db) e envia para o Dropbox
                         bairro.salvar_registro_diario(dados_registro)
-                        st.success("Lançamento salvo com sucesso!")
+                        st.success(
+                            "Lançamento salvo e sincronizado no Dropbox com sucesso!"
+                        )
 
     else:
         st.info("Nenhum imóvel corresponde aos filtros selecionados.")
