@@ -59,7 +59,7 @@ def carregar_db_do_dropbox(forcar=False):
             _, resposta = db_cliente.files_download(CAMINHO_DROPBOX_BAIRRO)
             with open(ARQUIVO_DB_BAIRRO, "wb") as f:
                 f.write(resposta.content)
-            st.toast("📥 Banco de dados restaurado do Dropbox!", icon="🔄")
+            # Notificação removida para o bairro.db conforme solicitado
         except ApiError:
             pass
         except Exception as e:
