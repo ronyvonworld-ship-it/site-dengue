@@ -59,7 +59,6 @@ def carregar_db_do_dropbox(forcar=False):
             _, resposta = db_cliente.files_download(CAMINHO_DROPBOX_BAIRRO)
             with open(ARQUIVO_DB_BAIRRO, "wb") as f:
                 f.write(resposta.content)
-            # Notificação removida para o bairro.db conforme solicitado
         except ApiError:
             pass
         except Exception as e:
@@ -339,6 +338,49 @@ def listar_quarteiroes_com_status(f_bairro="", f_quarteirao="", f_rua="", f_imov
     return dados
 
 
+def listar_quarteiroes_com_status_detalhado(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
+    """Retorna os imóveis com o status do ciclo atual, nome do agente responsável e data do lançamento."""
+    init_db_bairro()
+    inicializar_diario_db()
+
+    _, _, data_inicio, data_fim = obter_info_ciclo_atual()
+
+    conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
+    cursor = conn.cursor()
+
+    cursor.execute(f"ATTACH DATABASE '{ARQUIVO_DIARIO_DB}' AS db_diario")
+
+    sql_where, params = montar_clausula_where(f_bairro, f_quarteirao, f_rua, f_imovel, f_tipo)
+
+    sql = f"""
+        SELECT 
+            q.id, 
+            q.nome_bairro, 
+            q.num_quarteirao, 
+            q.nome_rua, 
+            q.num_lado, 
+            q.num_imovel, 
+            q.tipo_imovel,
+            COALESCE(d.situacao, 'Pendente') AS status_ciclo,
+            COALESCE(d.usuario, '-') AS agente,
+            COALESCE(d.data_registro, '-') AS data_lancamento
+        FROM quarteiroes q
+        LEFT JOIN (
+            SELECT imovel_id, situacao, usuario, data_registro,
+                   ROW_NUMBER() OVER (PARTITION BY imovel_id ORDER BY data_registro DESC) as rn
+            FROM db_diario.diario
+            WHERE data_registro BETWEEN '{data_inicio}' AND '{data_fim}'
+        ) d ON q.id = d.imovel_id AND d.rn = 1
+        {sql_where}
+        ORDER BY CAST(q.num_quarteirao AS INTEGER) ASC, q.num_lado ASC, q.id ASC
+    """
+
+    cursor.execute(sql, params)
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
 def obter_resumo_filtros(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
@@ -598,7 +640,7 @@ def gerenciar_backup_db():
         )
 
     with col_d_limpar:
-        st.markdown("**⚠️ Limpar/Zerar Registros do Diário**")
+        st.markdown("**⚠️️ Limpar/Zerar Registros do Diário**")
         if "confirmar_limpeza_diario" not in st.session_state:
             st.session_state["confirmar_limpeza_diario"] = False
 
