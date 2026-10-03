@@ -1,4 +1,5 @@
-import datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import os
 import re
 import sqlite3
@@ -17,6 +18,16 @@ CAMINHO_DROPBOX_DIARIO = "/diario.db"
 DROPBOX_APP_KEY = st.secrets.get("DROPBOX_APP_KEY", "")
 DROPBOX_APP_SECRET = st.secrets.get("DROPBOX_APP_SECRET", "")
 DROPBOX_REFRESH_TOKEN = st.secrets.get("DROPBOX_REFRESH_TOKEN", "")
+
+
+# --- FUNÇÕES DE FUSO HORÁRIO (HORÁRIO DE BRASÍLIA) ---
+
+def obter_horario_brasilia():
+    return datetime.now(ZoneInfo("America/Sao_Paulo"))
+
+
+def obter_data_brasilia():
+    return obter_horario_brasilia().date()
 
 
 # --- FUNÇÃO DE ESTILIZAÇÃO VISUAL ---
@@ -135,7 +146,7 @@ def enviar_diario_dropbox():
                     CAMINHO_DROPBOX_DIARIO,
                     mode=dropbox.files.WriteMode.overwrite
                 )
-            st.toast("☁️️ Diário sincronizado com o Dropbox!", icon="✅")
+            st.toast("☁ Diário sincronizado com o Dropbox!", icon="✅")
             return True
         except Exception as e:
             st.error(f"❌ Erro ao enviar diario.db para o Dropbox: {e}")
@@ -173,7 +184,7 @@ def limpar_diario_db():
 # --- LÓGICA DE CICLOS ANUAIS (6 CICLOS/ANO) ---
 
 def obter_info_ciclo_atual():
-    hoje = datetime.date.today()
+    hoje = obter_data_brasilia()  # Usa a data correta no Horário de Brasília
     ano = hoje.year
     mes = hoje.month
 
@@ -181,7 +192,7 @@ def obter_info_ciclo_atual():
     mes_inicio = (num_ciclo - 1) * 2 + 1
     mes_fim = mes_inicio + 1
 
-    data_inicio = datetime.date(ano, mes_inicio, 1).strftime("%Y-%m-%d 00:00:00")
+    data_inicio = datetime(ano, mes_inicio, 1, tzinfo=ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d 00:00:00")
 
     if mes_fim in [4, 6, 9, 11]:
         ultimo_dia = 30
@@ -190,7 +201,7 @@ def obter_info_ciclo_atual():
     else:
         ultimo_dia = 31
 
-    data_fim = datetime.date(ano, mes_fim, ultimo_dia).strftime("%Y-%m-%d 23:59:59")
+    data_fim = datetime(ano, mes_fim, ultimo_dia, tzinfo=ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d 23:59:59")
 
     return num_ciclo, ano, data_inicio, data_fim
 
@@ -603,7 +614,7 @@ def gerenciar_backup_db():
         st.markdown("**1. Baixar bairro.db**")
         bytes_db = obter_bytes_db()
         st.download_button(
-            label="⬇️️ Baixar bairro.db",
+            label="⬇ Baixar bairro.db",
             data=bytes_db,
             file_name="bairro.db",
             mime="application/x-sqlite3",
