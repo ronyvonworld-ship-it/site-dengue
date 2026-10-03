@@ -1,4 +1,5 @@
-import datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import hashlib
 import os
 import sqlite3
@@ -185,9 +186,9 @@ else:
     if st.session_state["tipo_usuario"] == "Administrador":
         st.title("📍 Mapeamento Territorial de Quarteirões")
 
-        # --- EXIBIÇÃO DA DATA E CICLO ATUAL (ADMIN) ---
+        # --- EXIBIÇÃO DA DATA E CICLO ATUAL (ADMIN) - HORÁRIO DE BRASÍLIA ---
         num_ciclo, ano_ciclo, dt_inicio_ciclo, dt_fim_ciclo = bairro.obter_info_ciclo_atual()
-        hoje_formatado = datetime.date.today().strftime("%d/%m/%Y")
+        hoje_formatado = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y")
         
         st.info(
             f"📅 **Data de Hoje:** `{hoje_formatado}` | "
@@ -399,13 +400,13 @@ else:
             with col_d1:
                 data_inicio = st.date_input(
                     "Data Inicial",
-                    value=datetime.date.today(),
+                    value=datetime.now(ZoneInfo("America/Sao_Paulo")).date(),
                     key="admin_d_inicio",
                 )
             with col_d2:
                 data_fim = st.date_input(
                     "Data Final",
-                    value=datetime.date.today(),
+                    value=datetime.now(ZoneInfo("America/Sao_Paulo")).date(),
                     key="admin_d_fim",
                 )
             with col_d3:
