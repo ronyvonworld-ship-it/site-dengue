@@ -105,9 +105,24 @@ if not st.session_state["logado"]:
 # --- ÁREA LOGADA ---
 else:
     if st.session_state.get("precisa_carregar_db", False):
-        with st.spinner("Sincronizando banco de dados com o Dropbox..."):
+        with st.spinner("Sincronizando bancos de dados com o Dropbox..."):
             try:
+                # Sincroniza o banco de bairros
                 bairro.carregar_db_do_dropbox(forcar=True)
+                
+                # Sincroniza automaticamente o diario.db do Dropbox
+                db_cliente = bairro.obter_cliente_dropbox()
+                if db_cliente:
+                    try:
+                        _, resposta = db_cliente.files_download("/diario.db")
+                        with open("diario.db", "wb") as f:
+                            f.write(resposta.content)
+                    except Exception:
+                        pass # Se não existir no Dropbox ainda, será gerado localmente
+                
+                # Inicializa as tabelas do diário localmente
+                bairro.inicializar_diario_db()
+
             except Exception as e:
                 st.error(f"Erro na sincronização inicial do Dropbox: {e}")
         st.session_state["precisa_carregar_db"] = False
@@ -117,10 +132,26 @@ else:
     st.sidebar.markdown(f"**Perfil:** `{st.session_state['tipo_usuario']}`")
 
     if st.sidebar.button("🔄 Sincronizar com Dropbox", use_container_width=True):
-        with st.spinner("Atualizando arquivo..."):
+        with st.spinner("Atualizando arquivos..."):
             if os.path.exists("bairro.db"):
                 os.remove("bairro.db")
+            if os.path.exists("diario.db"):
+                os.remove("diario.db")
+
+            # Sincroniza o banco de bairros
             bairro.carregar_db_do_dropbox(forcar=True)
+
+            # Sincroniza o diario.db da nuvem
+            db_cliente = bairro.obter_cliente_dropbox()
+            if db_cliente:
+                try:
+                    _, resposta = db_cliente.files_download("/diario.db")
+                    with open("diario.db", "wb") as f:
+                        f.write(resposta.content)
+                except Exception:
+                    pass
+
+            bairro.inicializar_diario_db()
             st.sidebar.success("Sincronização concluída!")
             st.rerun()
 
@@ -371,7 +402,7 @@ else:
             else:
                 resumo = bairro.obter_resumo_por_datas(data_inicio, data_fim, usuario=agente_selecionado)
 
-                # --- CÁLCULO DOS NOVOS INDICADORES ---
+                # --- CÁLCULO DOS INDICADORES ---
                 total_trabalhados = resumo["total_normal"] + resumo["total_recuperado"]
                 total_informados = resumo["total_normal"] + resumo["total_fechado"]
 
@@ -382,7 +413,7 @@ else:
                 m3.metric("Fechado 🟥", resumo["total_fechado"])
                 m4.metric("Recuperado 🟩", resumo["total_recuperado"])
 
-                # --- EXIBIÇÃO DOS NOVOS INDICADORES ---
+                # --- EXIBIÇÃO DOS INDICADORES ---
                 mi1, mi2 = st.columns(2)
                 mi1.metric("Imóveis Trabalhados", total_trabalhados)
                 mi2.metric("Imóveis Informados", total_informados)
