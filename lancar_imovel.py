@@ -1,4 +1,5 @@
-import datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 
@@ -20,9 +21,10 @@ def renderizar_tela_consulta():
     usuario_logado = st.session_state.get("usuario_atual", "Operador")
     st.title(f"📍 Mapeamento Territorial - Painel do Agente (`{usuario_logado}`)")
 
-    # --- EXIBIÇÃO DA DATA E CICLO ATUAL (AGENTE) ---
+    # --- EXIBIÇÃO DA DATA E CICLO ATUAL (AGENTE) - HORÁRIO DE BRASÍLIA ---
     num_ciclo, ano_ciclo, dt_inicio_ciclo, dt_fim_ciclo = bairro.obter_info_ciclo_atual()
-    hoje_formatado = datetime.date.today().strftime("%d/%m/%Y")
+    hoje_brasilia = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    hoje_formatado = hoje_brasilia.strftime("%d/%m/%Y")
     
     st.info(
         f"📅 **Data de Hoje:** `{hoje_formatado}` | "
@@ -41,9 +43,9 @@ def renderizar_tela_consulta():
         st.subheader(f"📊 Resumo de Trabalho do Agente: `{usuario_logado}`")
         col_d1, col_d2 = st.columns(2)
         with col_d1:
-            dt_inicio_user = st.date_input("Data Inicial", value=datetime.date.today(), key="u_dt_inicio")
+            dt_inicio_user = st.date_input("Data Inicial", value=hoje_brasilia, key="u_dt_inicio")
         with col_d2:
-            dt_fim_user = st.date_input("Data Final", value=datetime.date.today(), key="u_dt_fim")
+            dt_fim_user = st.date_input("Data Final", value=hoje_brasilia, key="u_dt_fim")
 
         if dt_inicio_user > dt_fim_user:
             st.error("⚠️ A data inicial não pode ser maior que a data final.")
