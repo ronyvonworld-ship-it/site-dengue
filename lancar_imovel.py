@@ -19,7 +19,20 @@ def colorir_linha_por_situacao(row):
 
 def renderizar_tela_consulta():
     usuario_logado = st.session_state.get("usuario_atual", "Operador")
-    st.title(f"📍 Mapeamento Territorial - Painel do Agente (`{usuario_logado}`)")
+    
+    # --- CABEÇALHO PADRÃO ELEGANTE ---
+    st.markdown(
+        """
+        <div style="text-align: center; padding: 5px 0px 15px 0px;">
+            <h1 style="color: #d9534f; margin-bottom: 0px; font-size: 2.1rem;">🦟 COMBATE À DENGUE</h1>
+            <h3 style="color: #4f4f4f; margin-top: 5px; font-weight: 500; font-size: 1.3rem;">Painel do Agente de Campo • Acari/RN</h3>
+            <p style="color: #6c757d; font-size: 0.95rem; margin-top: -5px;">Prefeitura Municipal de Acari | <b>Secretaria de Saúde</b></p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    st.markdown("---")
 
     # --- EXIBIÇÃO DA DATA E CICLO ATUAL (AGENTE) - HORÁRIO DE BRASÍLIA ---
     num_ciclo, ano_ciclo, dt_inicio_ciclo, dt_fim_ciclo = bairro.obter_info_ciclo_atual()
@@ -27,6 +40,7 @@ def renderizar_tela_consulta():
     hoje_formatado = hoje_brasilia.strftime("%d/%m/%Y")
     
     st.info(
+        f"👤 **Agente Logado:** `{usuario_logado}` | "
         f"📅 **Data de Hoje:** `{hoje_formatado}` | "
         f"🔄 **Ciclo Atual:** `{num_ciclo}º Ciclo de {ano_ciclo}` "
         f"(Período: `{dt_inicio_ciclo[:10]}` até `{dt_fim_ciclo[:10]}`)"
@@ -165,13 +179,18 @@ def renderizar_tela_consulta():
                     st.warning(f"🔒 **Imóvel ID #{id_imovel} já possui lançamento de ciclo concluído ({status_atual}) e está bloqueado para novas edições.**")
                 else:
                     st.markdown("---")
-                    st.subheader(f"📝 Lançamento Diário para o Imóvel ID #{id_imovel}")
-
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.markdown(f"**Bairro:** {imovel_sel['Bairro']}")
-                    c2.markdown(f"**Quarteirão:** {imovel_sel['Quarteirão']}")
-                    c3.markdown(f"**Rua e Nº:** {imovel_sel['Rua']}, {imovel_sel['Nº Imóvel']}")
-                    c4.markdown(f"**Tipo:** {imovel_sel['Tipo']}")
+                    
+                    # --- CARTÃO DE DESTAQUE DO IMÓVEL SELECIONADO ---
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #f8f9fa; border-left: 5px solid #d9534f; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                            <h4 style="margin-top: 0px; color: #333;">📝 Lançamento Diário para o Imóvel ID #{id_imovel}</h4>
+                            <p style="margin-bottom: 5px;"><b>Bairro:</b> {imovel_sel['Bairro']} | <b>Quarteirão:</b> {imovel_sel['Quarteirão']} | <b>Tipo:</b> {imovel_sel['Tipo']}</p>
+                            <p style="margin-bottom: 0px;"><b>Endereço:</b> {imovel_sel['Rua']}, Nº {imovel_sel['Nº Imóvel']}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
                     if status_atual == "Fechado":
                         opcoes_situacao = ["Fechado", "Recuperado"]
@@ -243,6 +262,7 @@ def renderizar_tela_consulta():
                     if st.button(
                         "💾 Salvar Lançamento no Diário",
                         type="primary",
+                        use_container_width=True,
                         key=f"btn_salvar_{id_imovel}",
                     ):
                         if (
