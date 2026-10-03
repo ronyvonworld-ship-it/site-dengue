@@ -184,7 +184,7 @@ def limpar_diario_db():
 # --- LÓGICA DE CICLOS ANUAIS (6 CICLOS/ANO) ---
 
 def obter_info_ciclo_atual():
-    hoje = obter_data_brasilia()  # Usa a data correta no Horário de Brasília
+    hoje = obter_data_brasilia()
     ano = hoje.year
     mes = hoje.month
 
@@ -460,7 +460,6 @@ def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
         total_fechado = row[2] or 0
         total_recuperado = row[3] or 0
 
-        # Novos cálculos solicitados (Imóveis informados = normais + fechados)
         casas_trabalhadas = total_normal + total_recuperado
         casas_informadas = total_normal + total_fechado
 
