@@ -63,7 +63,7 @@ def validar_login(usuario_input: str, senha_input: str):
 
 # Configuração da página
 st.set_page_config(
-    page_title="Sistema de Mapeamento", page_icon="📍", layout="wide"
+    page_title="Combate à Dengue - Acari", page_icon="🦟", layout="wide"
 )
 
 # --- Gerenciamento de Estado ---
@@ -79,28 +79,47 @@ if "precisa_carregar_db" not in st.session_state:
 
 # --- TELA DE LOGIN ---
 if not st.session_state["logado"]:
-    st.title("🔒 Acesso ao Sistema")
-    st.markdown("---")
+    # Layout centralizado e estilizado para a tela de login
+    col_vazia1, col_centro, col_vazia2 = st.columns([1, 1.2, 1])
 
-    with st.form("form_login"):
-        st.subheader("Autenticação")
-        usuario_input = st.text_input("Usuário")
-        senha_input = st.text_input("Senha", type="password")
-        btn_entrar = st.form_submit_button("Entrar", use_container_width=True)
+    with col_centro:
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Cabeçalho customizado e elegante
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 10px;">
+                <h1 style="color: #d9534f; margin-bottom: 0px; font-size: 2.3rem;">🦟 COMBATE À DENGUE</h1>
+                <h3 style="color: #4f4f4f; margin-top: 5px; font-weight: 500;">Boletim Diário da Cidade de Acari</h3>
+                <h4 style="color: #6c757d; font-weight: 400; font-size: 1.1rem; margin-top: -5px;">Prefeitura Municipal de Acari<br><b>Secretaria de Saúde</b></h4>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        
+        st.markdown("---")
 
-        if btn_entrar:
-            if not usuario_input or not senha_input:
-                st.warning("Por favor, preencha todos os campos.")
-            else:
-                sucesso, msg, tipo = validar_login(usuario_input, senha_input)
-                if sucesso:
-                    st.session_state["logado"] = True
-                    st.session_state["usuario_atual"] = usuario_input.strip()
-                    st.session_state["tipo_usuario"] = tipo
-                    st.session_state["precisa_carregar_db"] = True
-                    st.rerun()
+        with st.form("form_login"):
+            st.markdown("#### 🔐 Acesso ao Sistema")
+            usuario_input = st.text_input("Usuário")
+            senha_input = st.text_input("Senha", type="password")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            btn_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
+
+            if btn_entrar:
+                if not usuario_input or not senha_input:
+                    st.warning("Por favor, preencha todos os campos.")
                 else:
-                    st.error(msg)
+                    sucesso, msg, tipo = validar_login(usuario_input, senha_input)
+                    if sucesso:
+                        st.session_state["logado"] = True
+                        st.session_state["usuario_atual"] = usuario_input.strip()
+                        st.session_state["tipo_usuario"] = tipo
+                        st.session_state["precisa_carregar_db"] = True
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
 # --- ÁREA LOGADA ---
 else:
