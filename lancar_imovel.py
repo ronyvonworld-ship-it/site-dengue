@@ -140,18 +140,10 @@ def renderizar_tela_consulta():
         if apenas_fechados:
             df = df[df["Status Ciclo"] == "Fechado"]
 
-        st.subheader(f"Lista de Registros ({len(df)})")
-
-        col_leg1, col_leg2, col_leg3 = st.columns(3)
-        col_leg1.markdown("🟩 **Verde**: Lançado como *Normal* ou *Recuperado* (Bloqueado)")
-        col_leg2.markdown("🟥 **Vermelho**: Lançado como *Fechado* (Requer Recuperação)")
-        col_leg3.markdown("⬜ **Branco**: Sem lançamento (Disponível)")
-
-        st.info("💡 Clique em uma linha da tabela para realizar o lançamento (Imóveis com status **Normal** ou **Recuperado** já concluídos não podem ser alterados).")
-
         if not df.empty:
             df_estilizado = df.style.apply(colorir_linha_por_situacao, axis=1)
 
+            # Renderizamos a tabela e capturamos a seleção do usuário
             evento_selecao = st.dataframe(
                 df_estilizado,
                 use_container_width=True,
@@ -168,11 +160,15 @@ def renderizar_tela_consulta():
 
             linhas_selecionadas = evento_selecao.get("selection", {}).get("rows", [])
 
+            # Se um imóvel foi selecionado, exibimos apenas o formulário de lançamento
             if linhas_selecionadas:
                 idx_selecionado = linhas_selecionadas[0]
                 imovel_sel = df.iloc[idx_selecionado]
                 id_imovel = imovel_sel["ID"]
                 status_atual = imovel_sel["Status Ciclo"]
+
+                # Limpamos a área visual abaixo recriando um layout focado apenas no lançamento
+                st.empty()
 
                 # Bloqueio estrito se o imóvel já foi Normal ou Recuperado no ciclo
                 if status_atual in ["Normal", "Recuperado"]:
@@ -180,6 +176,10 @@ def renderizar_tela_consulta():
                 else:
                     st.markdown("---")
                     
+                    # Botão para voltar à lista caso queira cancelar
+                    if st.button("⬅ Voltar para a Lista de Imóveis"):
+                        st.rerun()
+
                     # --- CARTÃO DE DESTAQUE DO IMÓVEL SELECIONADO ---
                     st.markdown(
                         f"""
@@ -260,7 +260,7 @@ def renderizar_tela_consulta():
 
                     st.markdown(" ")
                     
-                    # Botão posicionado do lado esquerdo da tela (coluna da esquerda)
+                    # Botão posicionado do lado esquerdo da tela
                     col_botao, col_espaco = st.columns([1, 2])
                     with col_botao:
                         if st.button(
@@ -293,6 +293,17 @@ def renderizar_tela_consulta():
                                 bairro.salvar_registro_diario(dados_registro)
                                 st.success(f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!")
                                 st.rerun()
+
+            else:
+                # Caso nenhum imóvel esteja selecionado, exibe o cabeçalho e a lista normalmente
+                st.subheader(f"Lista de Registros ({len(df)})")
+
+                col_leg1, col_leg2, col_leg3 = st.columns(3)
+                col_leg1.markdown("🟩 **Verde**: Lançado como *Normal* ou *Recuperado* (Bloqueado)")
+                col_leg2.markdown("🟥 **Vermelho**: Lançado como *Fechado* (Requer Recuperação)")
+                col_leg3.markdown("⬜ **Branco**: Sem lançamento (Disponível)")
+
+                st.info("💡 Clique em uma linha da tabela para realizar o lançamento (Imóveis com status **Normal** ou **Recuperado** já concluídos não podem ser alterados).")
 
         else:
             st.info("Nenhum imóvel com status FECHADO encontrado.")
