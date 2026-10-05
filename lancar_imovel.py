@@ -260,8 +260,8 @@ def renderizar_tela_consulta():
 
                     st.markdown(" ")
                     
-                    # Organizado em colunas para o botão ficar menor e não ocupar a largura total
-                    col_espaco, col_botao = st.columns([2, 1])
+                    # Botão posicionado do lado esquerdo da tela (coluna da esquerda)
+                    col_botao, col_espaco = st.columns([1, 2])
                     with col_botao:
                         if st.button(
                             "💾 Salvar Lançamento",
