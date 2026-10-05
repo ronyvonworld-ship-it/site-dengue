@@ -259,37 +259,40 @@ def renderizar_tela_consulta():
                                 gramas_medicamento = float(val_gramas) if val_gramas is not None else 0.0
 
                     st.markdown(" ")
-                    if st.button(
-                        "💾 Salvar Lançamento no Diário",
-                        type="primary",
-                        use_container_width=True,
-                        key=f"btn_salvar_{id_imovel}",
-                    ):
-                        if (
-                            situacao in ["Normal", "Recuperado"]
-                            and fez_tratamento == "Sim"
-                            and depositos_tratados > depositos_eliminados
+                    
+                    # Organizado em colunas para o botão ficar menor e não ocupar a largura total
+                    col_espaco, col_botao = st.columns([2, 1])
+                    with col_botao:
+                        if st.button(
+                            "💾 Salvar Lançamento",
+                            type="primary",
+                            key=f"btn_salvar_{id_imovel}",
                         ):
-                            st.error("❌ Erro: Depósitos tratados não podem ser maiores que os eliminados!")
-                        else:
-                            dados_registro = (
-                                int(imovel_sel["ID"]),
-                                str(imovel_sel["Bairro"]),
-                                str(imovel_sel["Quarteirão"]),
-                                str(imovel_sel["Rua"]),
-                                str(imovel_sel["Nº Imóvel"]),
-                                str(imovel_sel["Tipo"]),
-                                situacao,
-                                depositos_eliminados,
-                                fez_tratamento,
-                                depositos_tratados,
-                                gramas_medicamento,
-                                usuario_logado,
-                            )
+                            if (
+                                situacao in ["Normal", "Recuperado"]
+                                and fez_tratamento == "Sim"
+                                and depositos_tratados > depositos_eliminados
+                            ):
+                                st.error("❌ Erro: Depósitos tratados não podem ser maiores que os eliminados!")
+                            else:
+                                dados_registro = (
+                                    int(imovel_sel["ID"]),
+                                    str(imovel_sel["Bairro"]),
+                                    str(imovel_sel["Quarteirão"]),
+                                    str(imovel_sel["Rua"]),
+                                    str(imovel_sel["Nº Imóvel"]),
+                                    str(imovel_sel["Tipo"]),
+                                    situacao,
+                                    depositos_eliminados,
+                                    fez_tratamento,
+                                    depositos_tratados,
+                                    gramas_medicamento,
+                                    usuario_logado,
+                                )
 
-                            bairro.salvar_registro_diario(dados_registro)
-                            st.success(f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!")
-                            st.rerun()
+                                bairro.salvar_registro_diario(dados_registro)
+                                st.success(f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!")
+                                st.rerun()
 
         else:
             st.info("Nenhum imóvel com status FECHADO encontrado.")
