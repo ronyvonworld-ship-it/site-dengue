@@ -62,7 +62,7 @@ def renderizar_tela_consulta():
             dt_fim_user = st.date_input("Data Final", value=hoje_brasilia, key="u_dt_fim")
 
         if dt_inicio_user > dt_fim_user:
-            st.error("⚠️ A data inicial não pode ser maior que a data final.")
+            st.error("⚠️️ A data inicial não pode ser maior que a data final.")
         else:
             resumo_u = bairro.obter_resumo_por_usuario_e_datas(usuario_logado, dt_inicio_user, dt_fim_user)
 
@@ -141,148 +141,156 @@ def renderizar_tela_consulta():
             df = df[df["Status Ciclo"] == "Fechado"]
 
         if not df.empty:
-            # Inicializamos a chave de controle no session_state se não existir
-            if "imovel_selecionado_id" not in st.session_state:
-                st.session_state["imovel_selecionado_id"] = None
+            df_estilizado = df.style.apply(colorir_linha_por_situacao, axis=1)
 
-            # SE UM IMÓVEL ESTIVER SELECIONADO PARA LANÇAMENTO, OCULTAMOS A TABELA E EXIBIMOS O FORMULÁRIO
-            if st.session_state["imovel_selecionado_id"] is not None:
-                id_alvo = st.session_state["imovel_selecionado_id"]
-                imovel_filtrado = df[df["ID"] == id_alvo]
+            # Renderizamos a tabela para capturar a seleção
+            evento_selecao = st.dataframe(
+                df_estilizado,
+                use_container_width=True,
+                hide_index=True,
+                selection_mode="single-row",
+                on_select="rerun",
+                column_config={
+                    "Status Ciclo": st.column_config.TextColumn(
+                        "Status no Ciclo Atual",
+                        help="Situação do último lançamento feito no ciclo bimestral corrente.",
+                    )
+                },
+            )
 
-                if not imovel_filtrado.empty:
-                    imovel_sel = imovel_filtrado.iloc[0]
-                    status_atual = imovel_sel["Status Ciclo"]
+            linhas_selecionadas = evento_selecao.get("selection", {}).get("rows", [])
 
-                    # Botão limpo para retornar à lista de imóveis
-                    if st.button("⬅ Voltar para a Lista de Imóveis"):
-                        st.session_state["imovel_selecionado_id"] = None
-                        st.rerun()
+            # --- SE UM IMÓVEL FOR SELECIONADO, EXIBIMOS O FORMULÁRIO EM DESTAQUE NO TOPO ---
+            if linhas_selecionadas:
+                idx_selecionado = linhas_selecionadas[0]
+                imovel_sel = df.iloc[idx_selecionado]
+                id_imovel = imovel_sel["ID"]
+                status_atual = imovel_sel["Status Ciclo"]
 
-                    st.markdown("---")
-                    
-                    # Cartão de destaque do imóvel
-                    st.markdown(
-                        f"""
-                        <div style="background-color: #f8f9fa; border-left: 6px solid #d9534f; padding: 18px; border-radius: 6px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                            <h3 style="margin-top: 0px; color: #d9534f; font-size: 1.4rem;">📝 Painel de Lançamento — Imóvel ID #{id_alvo}</h3>
-                            <p style="margin-bottom: 5px; font-size: 1.05rem;"><b>Bairro:</b> {imovel_sel['Bairro']} | <b>Quarteirão:</b> {imovel_sel['Quarteirão']} | <b>Tipo:</b> {imovel_sel['Tipo']}</p>
-                            <p style="margin-bottom: 0px; font-size: 1.05rem;"><b>Endereço:</b> {imovel_sel['Rua']}, Nº {imovel_sel['Nº Imóvel']}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
+                st.markdown("---")
+                
+                # Bloco de destaque que puxa o foco visual do usuário imediatamente
+                st.markdown(
+                    f"""
+                    <div style="background-color: #f8f9fa; border-left: 6px solid #d9534f; padding: 18px; border-radius: 6px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                        <h3 style="margin-top: 0px; color: #d9534f; font-size: 1.4rem;">📝 Painel de Lançamento — Imóvel ID #{id_imovel}</h3>
+                        <p style="margin-bottom: 5px; font-size: 1.05rem;"><b>Bairro:</b> {imovel_sel['Bairro']} | <b>Quarteirão:</b> {imovel_sel['Quarteirão']} | <b>Tipo:</b> {imovel_sel['Tipo']}</p>
+                        <p style="margin-bottom: 0px; font-size: 1.05rem;"><b>Endereço:</b> {imovel_sel['Rua']}, Nº {imovel_sel['Nº Imóvel']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                # Bloqueio estrito se o imóvel já foi Normal ou Recuperado no ciclo
+                if status_atual in ["Normal", "Recuperado"]:
+                    st.warning(f"🔒 **Imóvel ID #{id_imovel} já possui lançamento de ciclo concluído ({status_atual}) e está bloqueado para novas edições.**")
+                else:
+                    if status_atual == "Fechado":
+                        opcoes_situacao = ["Fechado", "Recuperado"]
+                        st.info("🔄 **Imóvel marcado como Fechado neste ciclo.** Selecione **Recuperado** para efetuar a vistoria realizada.")
+                    else:
+                        opcoes_situacao = ["Normal", "Fechado"]
+
+                    situacao = st.radio(
+                        "Situação do Imóvel:",
+                        opcoes_situacao,
+                        horizontal=True,
+                        key=f"situacao_{id_imovel}",
                     )
 
-                    if status_atual in ["Normal", "Recuperado"]:
-                        st.warning(f"🔒 **Imóvel ID #{id_alvo} já possui lançamento de ciclo concluído ({status_atual}) e está bloqueado para novas edições.**")
-                    else:
-                        if status_atual == "Fechado":
-                            opcoes_situacao = ["Fechado", "Recuperado"]
-                            st.info("🔄 **Imóvel marcado como Fechado neste ciclo.** Selecione **Recuperado** para efetuar a vistoria realizada.")
-                        else:
-                            opcoes_situacao = ["Normal", "Fechado"]
+                    depositos_eliminados = 0
+                    fez_tratamento = "Não"
+                    depositos_tratados = 0
+                    gramas_medicamento = 0.0
 
-                        situacao = st.radio(
-                            "Situação do Imóvel:",
-                            opcoes_situacao,
-                            horizontal=True,
-                            key=f"situacao_{id_alvo}",
-                        )
+                    if situacao in ["Normal", "Recuperado"]:
+                        col_dep1, col_dep2 = st.columns(2)
 
-                        depositos_eliminados = 0
-                        fez_tratamento = "Não"
-                        deposits_tratados = 0
-                        gramas_medicamento = 0.0
+                        with col_dep1:
+                            val_elim = st.number_input(
+                                "Depósitos Eliminados",
+                                min_value=0,
+                                step=1,
+                                value=None,
+                                placeholder="Digite a quantidade...",
+                                key=f"dep_elim_{id_imovel}",
+                            )
+                            depositos_eliminados = int(val_elim) if val_elim is not None else 0
 
-                        if situacao in ["Normal", "Recuperado"]:
-                            col_dep1, col_dep2 = st.columns(2)
+                        with col_dep2:
+                            fez_tratamento = st.selectbox(
+                                "Foi feito tratamento?",
+                                ["Não", "Sim"],
+                                key=f"fez_trat_{id_imovel}",
+                            )
 
-                            with col_dep1:
-                                val_elim = st.number_input(
-                                    "Depósitos Eliminados",
+                        if fez_tratamento == "Sim":
+                            col_trat1, col_trat2 = st.columns(2)
+                            with col_trat1:
+                                max_v = max(depositos_eliminados, 0)
+                                val_trat = st.number_input(
+                                    f"Depósitos Tratados (Máx: {depositos_eliminados})",
                                     min_value=0,
+                                    max_value=max_v if max_v > 0 else None,
                                     step=1,
                                     value=None,
-                                    placeholder="Digite a quantidade...",
-                                    key=f"dep_elim_{id_alvo}",
+                                    placeholder="Digite...",
+                                    key=f"dep_trat_{id_imovel}",
                                 )
-                                depositos_eliminados = int(val_elim) if val_elim is not None else 0
+                                depositos_tratados = int(val_trat) if val_trat is not None else 0
 
-                            with col_dep2:
-                                fez_tratamento = st.selectbox(
-                                    "Foi feito tratamento?",
-                                    ["Não", "Sim"],
-                                    key=f"fez_trat_{id_alvo}",
+                            with col_trat2:
+                                val_gramas = st.number_input(
+                                    "Quantidade de Medicamento Utilizado (g)",
+                                    min_value=0.0,
+                                    step=0.5,
+                                    format="%.2f",
+                                    value=None,
+                                    placeholder="Ex: 5.5",
+                                    key=f"gramas_{id_imovel}",
                                 )
+                                gramas_medicamento = float(val_gramas) if val_gramas is not None else 0.0
 
-                            if fez_tratamento == "Sim":
-                                col_trat1, col_trat2 = st.columns(2)
-                                with col_trat1:
-                                    max_v = max(depositos_eliminados, 0)
-                                    val_trat = st.number_input(
-                                        f"Depósitos Tratados (Máx: {depositos_eliminados})",
-                                        min_value=0,
-                                        max_value=max_v if max_v > 0 else None,
-                                        step=1,
-                                        value=None,
-                                        placeholder="Digite...",
-                                        key=f"dep_trat_{id_alvo}",
-                                    )
-                                    depositos_tratados = int(val_trat) if val_trat is not None else 0
-
-                                with col_trat2:
-                                    val_gramas = st.number_input(
-                                        "Quantidade de Medicamento Utilizado (g)",
-                                        min_value=0.0,
-                                        step=0.5,
-                                        format="%.2f",
-                                        value=None,
-                                        placeholder="Ex: 5.5",
-                                        key=f"gramas_{id_alvo}",
-                                    )
-                                    gramas_medicamento = float(val_gramas) if val_gramas is not None else 0.0
-
-                        st.markdown(" ")
-                        
-                        col_botao, col_espaco = st.columns([1, 2])
-                        with col_botao:
-                            if st.button(
-                                "💾 Salvar Lançamento",
-                                type="primary",
-                                key=f"btn_salvar_{id_alvo}",
+                    st.markdown(" ")
+                    
+                    # Botão posicionado do lado esquerdo
+                    col_botao, col_espaco = st.columns([1, 2])
+                    with col_botao:
+                        if st.button(
+                            "💾 Salvar Lançamento",
+                            type="primary",
+                            key=f"btn_salvar_{id_imovel}",
+                        ):
+                            if (
+                                situacao in ["Normal", "Recuperado"]
+                                and fez_tratamento == "Sim"
+                                and depositos_tratados > depositos_eliminados
                             ):
-                                if (
-                                    situacao in ["Normal", "Recuperado"]
-                                    and fez_tratamento == "Sim"
-                                    and depositos_tratados > depositos_eliminados
-                                ):
-                                    st.error("❌ Erro: Depósitos tratados não podem ser maiores que os eliminados!")
-                                else:
-                                    dados_registro = (
-                                        int(imovel_sel["ID"]),
-                                        str(imovel_sel["Bairro"]),
-                                        str(imovel_sel["Quarteirão"]),
-                                        str(imovel_sel["Rua"]),
-                                        str(imovel_sel["Nº Imóvel"]),
-                                        str(imovel_sel["Tipo"]),
-                                        situacao,
-                                        depositos_eliminados,
-                                        fez_tratamento,
-                                        depositos_tratados,
-                                        gramas_medicamento,
-                                        usuario_logado,
-                                    )
+                                st.error("❌ Erro: Depósitos tratados não podem ser maiores que os eliminados!")
+                            else:
+                                dados_registro = (
+                                    int(imovel_sel["ID"]),
+                                    str(imovel_sel["Bairro"]),
+                                    str(imovel_sel["Quarteirão"]),
+                                    str(imovel_sel["Rua"]),
+                                    str(imovel_sel["Nº Imóvel"]),
+                                    str(imovel_sel["Tipo"]),
+                                    situacao,
+                                    depositos_eliminados,
+                                    fez_tratamento,
+                                    depositos_tratados,
+                                    gramas_medicamento,
+                                    usuario_logado,
+                                )
 
-                                    bairro.salvar_registro_diario(dados_registro)
-                                    st.success(f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!")
-                                    st.session_state["imovel_selecionado_id"] = None
-                                    st.rerun()
-                else:
-                    st.session_state["imovel_selecionado_id"] = None
-                    st.rerun()
+                                bairro.salvar_registro_diario(dados_registro)
+                                st.success(f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!")
+                                st.rerun()
+
+                st.markdown("---")
 
             else:
-                # SE NENHUM IMÓVEL ESTIVER SELECIONADO, EXIBIMOS A TABELA NORMALMENTE
+                # Caso nenhum imóvel esteja selecionado, exibe a listagem normalmente abaixo
                 st.subheader(f"Lista de Registros ({len(df)})")
 
                 col_leg1, col_leg2, col_leg3 = st.columns(3)
@@ -291,30 +299,6 @@ def renderizar_tela_consulta():
                 col_leg3.markdown("⬜ **Branco**: Sem lançamento (Disponível)")
 
                 st.info("💡 Clique em uma linha da tabela para realizar o lançamento (Imóveis com status **Normal** ou **Recuperado** já concluídos não podem ser alterados).")
-
-                df_estilizado = df.style.apply(colorir_linha_por_situacao, axis=1)
-
-                evento_selecao = st.dataframe(
-                    df_estilizado,
-                    use_container_width=True,
-                    hide_index=True,
-                    selection_mode="single-row",
-                    on_select="rerun",
-                    column_config={
-                        "Status Ciclo": st.column_config.TextColumn(
-                            "Status no Ciclo Atual",
-                            help="Situação do último lançamento feito no ciclo bimestral corrente.",
-                        )
-                    },
-                )
-
-                linhas_selecionadas = evento_selecao.get("selection", {}).get("rows", [])
-
-                if linhas_selecionadas:
-                    idx_selecionado = linhas_selecionadas[0]
-                    imovel_sel = df.iloc[idx_selecionado]
-                    st.session_state["imovel_selecionado_id"] = imovel_sel["ID"]
-                    st.rerun()
 
         else:
             st.info("Nenhum imóvel com status FECHADO encontrado.")
