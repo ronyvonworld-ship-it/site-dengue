@@ -62,7 +62,7 @@ def renderizar_tela_consulta():
             dt_fim_user = st.date_input("Data Final", value=hoje_brasilia, key="u_dt_fim")
 
         if dt_inicio_user > dt_fim_user:
-            st.error("⚠️ A data inicial não pode ser maior que a data final.")
+            st.error("⚠️️ A data inicial não pode ser maior que a data final.")
         else:
             resumo_u = bairro.obter_resumo_por_usuario_e_datas(usuario_logado, dt_inicio_user, dt_fim_user)
 
@@ -143,7 +143,7 @@ def renderizar_tela_consulta():
         if not df.empty:
             df_estilizado = df.style.apply(colorir_linha_por_situacao, axis=1)
 
-            # Renderizamos a tabela e capturamos a seleção do usuário
+            # Renderizamos a tabela para capturar a seleção
             evento_selecao = st.dataframe(
                 df_estilizado,
                 use_container_width=True,
@@ -160,38 +160,31 @@ def renderizar_tela_consulta():
 
             linhas_selecionadas = evento_selecao.get("selection", {}).get("rows", [])
 
-            # Se um imóvel foi selecionado, exibimos apenas o formulário de lançamento
+            # --- SE UM IMÓVEL FOR SELECIONADO, EXIBIMOS O FORMULÁRIO EM DESTAQUE NO TOPO ---
             if linhas_selecionadas:
                 idx_selecionado = linhas_selecionadas[0]
                 imovel_sel = df.iloc[idx_selecionado]
                 id_imovel = imovel_sel["ID"]
                 status_atual = imovel_sel["Status Ciclo"]
 
-                # Limpamos a área visual abaixo recriando um layout focado apenas no lançamento
-                st.empty()
+                st.markdown("---")
+                
+                # Bloco de destaque que puxa o foco visual do usuário imediatamente
+                st.markdown(
+                    f"""
+                    <div style="background-color: #f8f9fa; border-left: 6px solid #d9534f; padding: 18px; border-radius: 6px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                        <h3 style="margin-top: 0px; color: #d9534f; font-size: 1.4rem;">📝 Painel de Lançamento — Imóvel ID #{id_imovel}</h3>
+                        <p style="margin-bottom: 5px; font-size: 1.05rem;"><b>Bairro:</b> {imovel_sel['Bairro']} | <b>Quarteirão:</b> {imovel_sel['Quarteirão']} | <b>Tipo:</b> {imovel_sel['Tipo']}</p>
+                        <p style="margin-bottom: 0px; font-size: 1.05rem;"><b>Endereço:</b> {imovel_sel['Rua']}, Nº {imovel_sel['Nº Imóvel']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
                 # Bloqueio estrito se o imóvel já foi Normal ou Recuperado no ciclo
                 if status_atual in ["Normal", "Recuperado"]:
                     st.warning(f"🔒 **Imóvel ID #{id_imovel} já possui lançamento de ciclo concluído ({status_atual}) e está bloqueado para novas edições.**")
                 else:
-                    st.markdown("---")
-                    
-                    # Botão para voltar à lista caso queira cancelar
-                    if st.button("⬅ Voltar para a Lista de Imóveis"):
-                        st.rerun()
-
-                    # --- CARTÃO DE DESTAQUE DO IMÓVEL SELECIONADO ---
-                    st.markdown(
-                        f"""
-                        <div style="background-color: #f8f9fa; border-left: 5px solid #d9534f; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-                            <h4 style="margin-top: 0px; color: #333;">📝 Lançamento Diário para o Imóvel ID #{id_imovel}</h4>
-                            <p style="margin-bottom: 5px;"><b>Bairro:</b> {imovel_sel['Bairro']} | <b>Quarteirão:</b> {imovel_sel['Quarteirão']} | <b>Tipo:</b> {imovel_sel['Tipo']}</p>
-                            <p style="margin-bottom: 0px;"><b>Endereço:</b> {imovel_sel['Rua']}, Nº {imovel_sel['Nº Imóvel']}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
                     if status_atual == "Fechado":
                         opcoes_situacao = ["Fechado", "Recuperado"]
                         st.info("🔄 **Imóvel marcado como Fechado neste ciclo.** Selecione **Recuperado** para efetuar a vistoria realizada.")
@@ -260,7 +253,7 @@ def renderizar_tela_consulta():
 
                     st.markdown(" ")
                     
-                    # Botão posicionado do lado esquerdo da tela
+                    # Botão posicionado do lado esquerdo
                     col_botao, col_espaco = st.columns([1, 2])
                     with col_botao:
                         if st.button(
@@ -294,8 +287,10 @@ def renderizar_tela_consulta():
                                 st.success(f"Lançamento ({situacao}) salvo e sincronizado no Dropbox com sucesso!")
                                 st.rerun()
 
+                st.markdown("---")
+
             else:
-                # Caso nenhum imóvel esteja selecionado, exibe o cabeçalho e a lista normalmente
+                # Caso nenhum imóvel esteja selecionado, exibe a listagem normalmente abaixo
                 st.subheader(f"Lista de Registros ({len(df)})")
 
                 col_leg1, col_leg2, col_leg3 = st.columns(3)
