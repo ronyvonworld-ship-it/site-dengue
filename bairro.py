@@ -423,7 +423,7 @@ def obter_lista_agentes():
 
 
 def obter_quarteiroes_trabalhados_por_datas(data_inicio, data_fim, usuario=None):
-    """Retorna a lista de bairros e quarteirões trabalhados no intervalo de datas e opcionalmente por agente."""
+    """Retorna a lista de bairros e quarteirões onde houve lançamentos no intervalo de datas e por agente."""
     init_db_bairro()
     inicializar_diario_db()
 
