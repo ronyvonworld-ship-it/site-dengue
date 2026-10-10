@@ -423,7 +423,7 @@ def obter_lista_agentes():
 
 
 def obter_quarteiroes_trabalhados_por_datas(data_inicio, data_fim, usuario=None):
-    """Retorna a lista de bairros e quarteirões onde houve lançamentos no intervalo de datas e por agente."""
+    """Retorna a lista de bairros e quarteirões trabalhados no intervalo de datas e opcionalmente por agente."""
     init_db_bairro()
     inicializar_diario_db()
 
@@ -486,4 +486,235 @@ def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
     row = cursor.fetchone()
     conn.close()
 
-    quarteiroes_trabalhados = obter_
+    quarteiroes_trabalhados = obter_quarteiroes_trabalhados_por_datas(data_inicio, data_fim, usuario)
+
+    if row:
+        total_normal = row[1] or 0
+        total_fechado = row[2] or 0
+        total_recuperado = row[3] or 0
+
+        casas_trabalhadas = total_normal + total_recuperado
+        casas_informadas = total_normal + total_fechado
+
+        return {
+            "total_lancados": row[0] or 0,
+            "total_normal": total_normal,
+            "total_fechado": total_fechado,
+            "total_recuperado": total_recuperado,
+            "casas_trabalhadas": casas_trabalhadas,
+            "casas_informadas": casas_informadas,
+            "total_residencia": row[4] or 0,
+            "total_comercio": row[5] or 0,
+            "total_terreno": row[6] or 0,
+            "total_outro": row[7] or 0,
+            "total_eliminados": row[8] or 0,
+            "total_tratados": row[9] or 0,
+            "total_gramas": row[10] or 0.0,
+            "quarteiroes_trabalhados": quarteiroes_trabalhados,
+        }
+    return {
+        "total_lancados": 0,
+        "total_normal": 0,
+        "total_fechado": 0,
+        "total_recuperado": 0,
+        "casas_trabalhadas": 0,
+        "casas_informadas": 0,
+        "total_residencia": 0,
+        "total_comercio": 0,
+        "total_terreno": 0,
+        "total_outro": 0,
+        "total_eliminados": 0,
+        "total_tratados": 0,
+        "total_gramas": 0.0,
+        "quarteiroes_trabalhados": [],
+    }
+
+
+def obter_resumo_por_usuario_e_datas(usuario, data_inicio, data_fim):
+    return obter_resumo_por_datas(data_inicio, data_fim, usuario=usuario)
+
+
+def listar_status_quarteiroes_por_bairro(bairro_nome):
+    init_db_bairro()
+    inicializar_diario_db()
+
+    num_ciclo, ano, data_inicio, data_fim = obter_info_ciclo_atual()
+
+    conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
+    cursor = conn.cursor()
+
+    cursor.execute(f"ATTACH DATABASE '{ARQUIVO_DIARIO_DB}' AS db_diario")
+
+    query = f"""
+        SELECT 
+            q.num_quarteirao,
+            COUNT(q.id) AS total_imoveis,
+            COUNT(DISTINCT d.imovel_id) AS total_lancados
+        FROM quarteiroes q
+        LEFT JOIN db_diario.diario d 
+            ON q.id = d.imovel_id 
+           AND d.data_registro BETWEEN '{data_inicio}' AND '{data_fim}'
+        WHERE LOWER(q.nome_bairro) LIKE LOWER(?)
+        GROUP BY q.num_quarteirao
+        ORDER BY CAST(q.num_quarteirao AS INTEGER) ASC
+    """
+
+    cursor.execute(query, (f"%{bairro_nome.strip()}%",))
+    registros = cursor.fetchall()
+    conn.close()
+
+    resultado = []
+    for q_num, total, lancados in registros:
+        concluido = (lancados >= total) and (total > 0)
+        status_txt = "✅ CONCLUÍDO" if concluido else "❌ INCOMPLETO"
+        resultado.append({
+            "Quarteirão": q_num,
+            "Total Imóveis": total,
+            "Imóveis Visitados": lancados,
+            "Pendentes": max(0, total - lancados),
+            "Status": status_txt
+        })
+
+    return resultado
+
+
+# --- RECURSOS AUXILIARES ---
+
+def confirmar_e_atualizar(id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val):
+    chave_edicao = f"confirmar_edicao_{id_sel}"
+    if st.button("💾 Salvar Alterações", use_container_width=True, key=f"btn_salvar_{id_sel}"):
+        st.session_state[chave_edicao] = True
+        st.session_state[f"confirmar_exclusao_{id_sel}"] = False
+
+    if st.session_state.get(chave_edicao, False):
+        st.info(f"❓ Tem certeza de que deseja atualizar o **Registro ID {id_sel}**?")
+        col_sim, col_nao = st.columns(2)
+        with col_sim:
+            if st.button("✅ Confirmar Atualização", key=f"sim_edit_{id_sel}", use_container_width=True):
+                atualizar_quarteirao(id_sel, bairro_val, quarteirao_val, rua_val, lado_val, imovel_val, tipo_val)
+                st.session_state[chave_edicao] = False
+                st.success(f"Registro ID {id_sel} atualizado com sucesso!")
+                st.rerun()
+        with col_nao:
+            if st.button("❌ Cancelar", key=f"cancela_edit_{id_sel}", use_container_width=True):
+                st.session_state[chave_edicao] = False
+                st.rerun()
+
+
+def confirmar_e_excluir(id_sel):
+    chave_exclusao = f"confirmar_exclusao_{id_sel}"
+    if st.button("🗑️ Excluir Imóvel", use_container_width=True, key=f"btn_excluir_{id_sel}"):
+        st.session_state[chave_exclusao] = True
+        st.session_state[f"confirmar_edicao_{id_sel}"] = False
+
+    if st.session_state.get(chave_exclusao, False):
+        st.warning(f"⚠️ **ATENÇÃO:** Tem certeza de que deseja excluir o **Registro ID {id_sel}**?")
+        col_sim, col_nao = st.columns(2)
+        with col_sim:
+            if st.button("🔴 Sim, Excluir Registro", key=f"sim_exc_{id_sel}", use_container_width=True):
+                excluir_quarteirao(id_sel)
+                st.session_state[chave_exclusao] = False
+                st.success(f"Registro ID {id_sel} excluído com sucesso!")
+                st.rerun()
+        with col_nao:
+            if st.button("❌ Cancelar", key=f"cancela_exc_{id_sel}", use_container_width=True):
+                st.session_state[chave_exclusao] = False
+                st.rerun()
+
+
+def obter_bytes_db():
+    init_db_bairro()
+    if os.path.exists(ARQUIVO_DB_BAIRRO):
+        with open(ARQUIVO_DB_BAIRRO, "rb") as f:
+            return f.read()
+    return b""
+
+
+def obter_bytes_diario():
+    inicializar_diario_db()
+    if os.path.exists(ARQUIVO_DIARIO_DB):
+        with open(ARQUIVO_DIARIO_DB, "rb") as f:
+            return f.read()
+    return b""
+
+
+def gerenciar_backup_db():
+    st.subheader("💾 Backup e Sincronização de Bancos de Dados")
+
+    st.markdown("##### 📍 Banco de Bairros/Imóveis (`bairro.db`)")
+    col_down, col_up, col_sync = st.columns(3)
+
+    with col_down:
+        st.markdown("**1. Baixar bairro.db**")
+        bytes_db = obter_bytes_db()
+        st.download_button(
+            label="⬇ Baixar bairro.db",
+            data=bytes_db,
+            file_name="bairro.db",
+            mime="application/x-sqlite3",
+            use_container_width=True
+        )
+
+    with col_up:
+        st.markdown("**2. Enviar bairro.db**")
+        arquivo_enviado = st.file_uploader(
+            "Selecione um arquivo .db local",
+            type=["db", "sqlite", "sqlite3"],
+            key="uploader_db_bairro",
+            label_visibility="collapsed"
+        )
+        if arquivo_enviado is not None:
+            if st.button("⬆ Restaurar bairro.db", use_container_width=True):
+                try:
+                    with open(ARQUIVO_DB_BAIRRO, "wb") as f:
+                        f.write(arquivo_enviado.getbuffer())
+                    enviar_db_para_dropbox()
+                    st.success("✅ Banco de bairros atualizado e enviado para o Dropbox!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro ao salvar o arquivo: {e}")
+
+    with col_sync:
+        st.markdown("**3. Sincronização Nuvem**")
+        if st.button("🔄 Restaurar da Nuvem", use_container_width=True):
+            carregar_db_do_dropbox(forcar=True)
+            st.rerun()
+
+    st.markdown("---")
+    st.markdown("##### 📋 Banco de Lançamentos Diários (`diario.db`)")
+    
+    col_d_down, col_d_limpar = st.columns(2)
+
+    with col_d_down:
+        st.markdown("**Baixar Histórico de Lançamentos**")
+        bytes_diario = obter_bytes_diario()
+        st.download_button(
+            label="⬇️ Baixar diario.db",
+            data=bytes_diario,
+            file_name="diario.db",
+            mime="application/x-sqlite3",
+            use_container_width=True
+        )
+
+    with col_d_limpar:
+        st.markdown("**⚠ Limpar/Zerar Registros do Diário**")
+        if "confirmar_limpeza_diario" not in st.session_state:
+            st.session_state["confirmar_limpeza_diario"] = False
+
+        if not st.session_state["confirmar_limpeza_diario"]:
+            if st.button("🗑️ Limpar diario.db", type="secondary", use_container_width=True):
+                st.session_state["confirmar_limpeza_diario"] = True
+                st.rerun()
+        else:
+            st.warning("⚠️ **ATENÇÃO:** Isso apagará PERMANENTEMENTE todos os lançamentos diários salvos!")
+            c_sim, c_nao = st.columns(2)
+            with c_sim:
+                if st.button("🔴 Sim, Limpar Tudo", use_container_width=True):
+                    limpar_diario_db()
+                    st.session_state["confirmar_limpeza_diario"] = False
+                    st.success("✅ O banco diario.db foi limpo com sucesso!")
+                    st.rerun()
+            with c_nao:
+                if st.button("❌ Cancelar", use_container_width=True):
+                    st.session_state["confirmar_limpeza_diario"] = False
+                    st.rerun()
