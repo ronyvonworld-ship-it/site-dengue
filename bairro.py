@@ -422,6 +422,37 @@ def obter_lista_agentes():
     return agentes
 
 
+def obter_quarteiroes_trabalhados_por_datas(data_inicio, data_fim, usuario=None):
+    """Retorna a lista de bairros e quarteirões trabalhados no intervalo de datas e opcionalmente por agente."""
+    init_db_bairro()
+    inicializar_diario_db()
+
+    conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
+    cursor = conn.cursor()
+    cursor.execute(f"ATTACH DATABASE '{ARQUIVO_DIARIO_DB}' AS db_diario")
+
+    sql_usuario = ""
+    params = [str(data_inicio), str(data_fim)]
+
+    if usuario and usuario != "Todos (Total Geral)":
+        sql_usuario = " AND LOWER(d.usuario) = LOWER(?)"
+        params.append(str(usuario).strip())
+
+    query = f"""
+        SELECT DISTINCT q.nome_bairro, q.num_quarteirao
+        FROM db_diario.diario d
+        JOIN quarteiroes q ON d.imovel_id = q.id
+        WHERE DATE(d.data_registro) BETWEEN DATE(?) AND DATE(?) {sql_usuario}
+        ORDER BY q.nome_bairro ASC, CAST(q.num_quarteirao AS INTEGER) ASC
+    """
+
+    cursor.execute(query, params)
+    registros = cursor.fetchall()
+    conn.close()
+
+    return [{"bairro": r[0], "quarteirao": r[1]} for r in registros]
+
+
 def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
     inicializar_diario_db()
     conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
@@ -455,6 +486,8 @@ def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
     row = cursor.fetchone()
     conn.close()
 
+    quarteiroes_trabalhados = obter_quarteiroes_trabalhados_por_datas(data_inicio, data_fim, usuario)
+
     if row:
         total_normal = row[1] or 0
         total_fechado = row[2] or 0
@@ -477,6 +510,7 @@ def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
             "total_eliminados": row[8] or 0,
             "total_tratados": row[9] or 0,
             "total_gramas": row[10] or 0.0,
+            "quarteiroes_trabalhados": quarteiroes_trabalhados,
         }
     return {
         "total_lancados": 0,
@@ -492,6 +526,7 @@ def obter_resumo_por_datas(data_inicio, data_fim, usuario=None):
         "total_eliminados": 0,
         "total_tratados": 0,
         "total_gramas": 0.0,
+        "quarteiroes_trabalhados": [],
     }
 
 
