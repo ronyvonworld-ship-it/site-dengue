@@ -451,6 +451,22 @@ else:
                 m6.metric("Depósitos Tratados", resumo["total_tratados"])
                 m7.metric("Medicamento (g)", f"{resumo['total_gramas']:.2f} g")
 
+                # --- TABELA AUTOMÁTICA DE BAIRROS E QUARTEIRÕES TRABALHADOS ---
+                st.markdown("##### 🧱 Bairros e Quarteirões Trabalhados no Período")
+                quarteiroes_trabalhados = resumo.get("quarteiroes_trabalhados", [])
+
+                if quarteiroes_trabalhados:
+                    df_q_trabalhados = pd.DataFrame(quarteiroes_trabalhados)
+                    df_q_trabalhados.columns = ["Nome do Bairro", "Nº do Quarteirão"]
+                    
+                    col_q_tab, col_q_info = st.columns([2, 1])
+                    with col_q_tab:
+                        st.dataframe(df_q_trabalhados, use_container_width=True, hide_index=True)
+                    with col_q_info:
+                        st.info(f"📌 **Total de Quarteirões Trabalhados:** `{len(df_q_trabalhados)}`")
+                else:
+                    st.info("ℹ️ Nenhum quarteirão trabalhado encontrado para o período e agente selecionados.")
+
             st.markdown("---")
             st.subheader("🏁 Situação de Todos os Quarteirões do Bairro")
 
