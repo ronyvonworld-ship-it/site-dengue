@@ -534,45 +534,6 @@ else:
                         
                         st.dataframe(df_q, use_container_width=True, hide_index=True)
 
-                        st.markdown("---")
-                        st.markdown("##### 🔎 Auditoria de Imóveis por Quarteirão")
-                        q_para_auditar = st.selectbox(
-                            "Selecione o Quarteirão para inspecionar os imóveis cadastrados vs. lançados:",
-                            options=df_q["Quarteirão"].tolist(),
-                            key="select_quarteirao_auditoria"
-                        )
-
-                        if q_para_auditar:
-                            conn_aud = sqlite3.connect(bairro.ARQUIVO_DB_BAIRRO)
-                            cursor_aud = conn_aud.cursor()
-                            cursor_aud.execute(f"ATTACH DATABASE '{bairro.ARQUIVO_DIARIO_DB}' AS db_diario")
-                            
-                            _, _, dt_ini, dt_fim = bairro.obter_info_ciclo_atual()
-                            
-                            query_aud = f"""
-                                SELECT 
-                                    q.id, q.nome_rua, q.num_lado, q.num_imovel, q.tipo_imovel,
-                                    COALESCE(d.situacao, 'Pendente (Sem Lançamento)') AS situacao_ciclo
-                                FROM quarteiroes q
-                                LEFT JOIN (
-                                    SELECT imovel_id, situacao,
-                                           ROW_NUMBER() OVER (PARTITION BY imovel_id ORDER BY data_registro DESC) as rn
-                                    FROM db_diario.diario
-                                    WHERE data_registro BETWEEN '{dt_ini}' AND '{dt_fim}'
-                                ) d ON q.id = d.imovel_id AND d.rn = 1
-                                WHERE LOWER(q.nome_bairro) LIKE LOWER(?) AND q.num_quarteirao = ?
-                                ORDER BY q.num_lado ASC, q.id ASC
-                            """
-                            cursor_aud.execute(query_aud, (f"%{bairro_chk.strip()}%", str(q_para_auditar)))
-                            imoveis_aud = cursor_aud.fetchall()
-                            conn_aud.close()
-
-                            if imoveis_aud:
-                                df_aud = pd.DataFrame(imoveis_aud, columns=["ID", "Rua", "Lado", "Nº Imóvel", "Tipo", "Status no Ciclo"])
-                                st.dataframe(df_aud, use_container_width=True, hide_index=True)
-                            else:
-                                st.info("Nenhum imóvel encontrado para este quarteirão.")
-
         # TAB 4: Backup
         with aba_backup:
             bairro.gerenciar_backup_db()
