@@ -316,7 +316,6 @@ else:
                     ],
                 )
 
-                # Remove o ID da visualização da tabela
                 df_exibicao = df.drop(columns=["ID"])
 
                 df_estilizado = df_exibicao.style.apply(
