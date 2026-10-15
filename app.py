@@ -396,39 +396,39 @@ else:
             else:
                 st.info("Nenhum imóvel corresponde aos filtros selecionados.")
 
-            # --- NOVA SEÇÃO: EXCLUSÃO DE QUARTEIRÃO COMPLETO ---
+            # --- EXCLUSÃO DE UM ÚNICO QUARTEIRÃO POR BAIRRO ---
             st.markdown("---")
-            st.subheader("🗑️ Excluir Quarteirão Completo")
-            st.warning("⚠️ **Atenção:** Esta ação excluirá de uma só vez TODOS os imóveis pertencentes ao Bairro e Quarteirão selecionados abaixo.")
+            st.subheader("🗑️ Excluir um Quarteirão Específico")
+            st.warning("⚠️ **Atenção:** Esta ação removerá de uma só vez TODOS os imóveis cadastrados APENAS no **Quarteirão** e **Bairro** informados abaixo.")
 
             col_del_b, col_del_q = st.columns(2)
             with col_del_b:
-                del_bairro = st.text_input("Nome do Bairro para exclusão", key="del_bairro_input")
+                del_bairro = st.text_input("Bairro do Quarteirão", key="del_bairro_input")
             with col_del_q:
-                del_quarteirao = st.text_input("Número do Quarteirão para exclusão", key="del_quart_input")
+                del_quarteirao = st.text_input("Número do Quarteirão", key="del_quart_input")
 
             if "confirmar_del_quarteirao_completo" not in st.session_state:
                 st.session_state["confirmar_del_quarteirao_completo"] = False
 
-            if st.button("🚨 Excluir Quarteirão Inteiro", type="primary", use_container_width=True, key="btn_solicitar_del_quart"):
+            if st.button("🚨 Excluir Este Quarteirão", type="primary", use_container_width=True, key="btn_solicitar_del_quart"):
                 if not del_bairro.strip() or not del_quarteirao.strip():
-                    st.warning("Preencha o Nome do Bairro e o Número do Quarteirão.")
+                    st.warning("Informe tanto o Bairro quanto o Número do Quarteirão para prosseguir.")
                 else:
                     st.session_state["confirmar_del_quarteirao_completo"] = True
 
             if st.session_state.get("confirmar_del_quarteirao_completo", False):
                 st.error(
-                    f"❓ **CONFIRMAÇÃO DE SEGURANÇA:** Tem certeza absoluta de que deseja apagar **TODOS** os imóveis do **Quarteirão {del_quarteirao}** no **Bairro {del_bairro}**?"
+                    f"❓ **CONFIRMAÇÃO DE SEGURANÇA:** Tem certeza de que deseja apagar todos os imóveis do **Quarteirão nº {del_quarteirao}** do **Bairro {del_bairro}**?"
                 )
                 col_c_sim, col_c_nao = st.columns(2)
                 with col_c_sim:
-                    if st.button("🔴 Sim, Apagar Quarteirão Inteiro", use_container_width=True, key="btn_sim_del_quart_completo"):
+                    if st.button("🔴 Sim, Apagar Este Quarteirão", use_container_width=True, key="btn_sim_del_quart_completo"):
                         qtd_deletados = bairro.excluir_quarteirao_completo(del_bairro, del_quarteirao)
                         st.session_state["confirmar_del_quarteirao_completo"] = False
                         if qtd_deletados > 0:
-                            st.success(f"✅ Quarteirão {del_quarteirao} do bairro {del_bairro} foi completamente apagado! Total de {qtd_deletados} imóvel(is) removido(s).")
+                            st.success(f"✅ Quarteirão nº {del_quarteirao} do bairro '{del_bairro}' removido com sucesso! ({qtd_deletados} imóveis excluídos).")
                         else:
-                            st.info(f"Nenhum imóvel encontrado para o Quarteirão {del_quarteirao} no Bairro {del_bairro}.")
+                            st.info(f"Nenhum imóvel foi encontrado para o Quarteirão nº {del_quarteirao} no Bairro '{del_bairro}'.")
                         st.rerun()
                 with col_c_nao:
                     if st.button("❌ Cancelar Exclusão", use_container_width=True, key="btn_cancela_del_quart_completo"):
@@ -534,7 +534,6 @@ else:
                         
                         st.dataframe(df_q, use_container_width=True, hide_index=True)
 
-                        # Ferramenta de Auditoria Direta para Identificar Imóveis
                         st.markdown("---")
                         st.markdown("##### 🔎 Auditoria de Imóveis por Quarteirão")
                         q_para_auditar = st.selectbox(
