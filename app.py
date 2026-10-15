@@ -297,8 +297,16 @@ else:
             st.subheader(f"Lista de Registros ({len(dados_detalhados)})")
 
             if dados_detalhados:
+                # Formata os valores de gramas de medicamento para exibição com 2 casas decimais
+                dados_formatados = []
+                for row in dados_detalhados:
+                    row_lista = list(row)
+                    if len(row_lista) > 12 and isinstance(row_lista[12], (int, float)):
+                        row_lista[12] = f"{row_lista[12]:.2f}"
+                    dados_formatados.append(row_lista)
+
                 df = pd.DataFrame(
-                    dados_detalhados,
+                    dados_formatados,
                     columns=[
                         "ID",
                         "Bairro",
