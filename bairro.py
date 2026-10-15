@@ -59,6 +59,22 @@ def obter_cliente_dropbox():
         st.error(f"❌ Falha ao conectar à API do Dropbox: {e}")
         return None
 
+def excluir_quarteirao_completo(bairro_nome, quarteirao_num):
+    """Exclui todos os imóveis pertencentes a um quarteirão específico de um bairro."""
+    init_db_bairro()
+    conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
+    cursor = conn.cursor()
+    cursor.execute("""
+        DELETE FROM quarteiroes 
+        WHERE LOWER(TRIM(nome_bairro)) = LOWER(TRIM(?)) 
+          AND TRIM(num_quarteirao) = TRIM(?)
+    """, (bairro_nome, str(quarteirao_num)))
+    total_deletados = cursor.rowcount
+    conn.commit()
+    conn.close()
+    enviar_db_para_dropbox()
+    return total_deletados
+
 
 def carregar_db_do_dropbox(forcar=False):
     db_cliente = obter_cliente_dropbox()
