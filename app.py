@@ -80,13 +80,11 @@ if "precisa_carregar_db" not in st.session_state:
 
 # --- TELA DE LOGIN ---
 if not st.session_state["logado"]:
-    # Layout centralizado e estilizado para a tela de login
     col_vazia1, col_centro, col_vazia2 = st.columns([1, 1.2, 1])
 
     with col_centro:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Cabeçalho customizado e elegante
         st.markdown(
             """
             <div style="text-align: center; padding: 10px;">
@@ -127,10 +125,8 @@ else:
     if st.session_state.get("precisa_carregar_db", False):
         with st.spinner("Sincronizando bancos de dados com o Dropbox..."):
             try:
-                # Sincroniza o banco de bairros
                 bairro.carregar_db_do_dropbox(forcar=True)
                 
-                # Sincroniza automaticamente o diario.db do Dropbox
                 db_cliente = bairro.obter_cliente_dropbox()
                 if db_cliente:
                     try:
@@ -138,9 +134,8 @@ else:
                         with open("diario.db", "wb") as f:
                             f.write(resposta.content)
                     except Exception:
-                        pass # Se não existir no Dropbox ainda, será gerado localmente
+                        pass
                 
-                # Inicializa as tabelas do diário localmente
                 bairro.inicializar_diario_db()
 
             except Exception as e:
@@ -158,10 +153,8 @@ else:
             if os.path.exists("diario.db"):
                 os.remove("diario.db")
 
-            # Sincroniza o banco de bairros
             bairro.carregar_db_do_dropbox(forcar=True)
 
-            # Sincroniza o diario.db da nuvem
             db_cliente = bairro.obter_cliente_dropbox()
             if db_cliente:
                 try:
@@ -186,7 +179,6 @@ else:
     if st.session_state["tipo_usuario"] == "Administrador":
         st.title("📍 Mapeamento Territorial de Quarteirões")
 
-        # --- EXIBIÇÃO DA DATA E CICLO ATUAL (ADMIN) - HORÁRIO DE BRASÍLIA ---
         num_ciclo, ano_ciclo, dt_inicio_ciclo, dt_fim_ciclo = bairro.obter_info_ciclo_atual()
         hoje_formatado = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y")
         
@@ -318,10 +310,16 @@ else:
                         "Status Ciclo",
                         "Agente",
                         "Data do Lançamento",
+                        "Dep. Eliminados",
+                        "Dep. Tratados",
+                        "Medicamento (g)",
                     ],
                 )
 
-                df_estilizado = df.style.apply(
+                # Remove o ID da visualização da tabela
+                df_exibicao = df.drop(columns=["ID"])
+
+                df_estilizado = df_exibicao.style.apply(
                     bairro.colorir_linha_por_situacao, axis=1
                 )
                 st.dataframe(df_estilizado, use_container_width=True, hide_index=True)
@@ -422,7 +420,6 @@ else:
             else:
                 resumo = bairro.obter_resumo_por_datas(data_inicio, data_fim, usuario=agente_selecionado)
 
-                # --- CÁLCULO DOS INDICADORES ---
                 total_trabalhados = resumo["total_normal"] + resumo["total_recuperado"]
                 total_informados = resumo["total_normal"] + resumo["total_fechado"]
 
@@ -433,7 +430,6 @@ else:
                 m3.metric("Fechado 🟥", resumo["total_fechado"])
                 m4.metric("Recuperado 🟩", resumo["total_recuperado"])
 
-                # --- EXIBIÇÃO DOS INDICADORES ---
                 mi1, mi2 = st.columns(2)
                 mi1.metric("Imóveis Trabalhados", total_trabalhados)
                 mi2.metric("Imóveis Informados", total_informados)
@@ -451,7 +447,6 @@ else:
                 m6.metric("Depósitos Tratados", resumo["total_tratados"])
                 m7.metric("Medicamento (g)", f"{resumo['total_gramas']:.2f} g")
 
-                # --- TABELA AUTOMÁTICA DE BAIRROS E QUARTEIRÕES TRABALHADOS ---
                 st.markdown("##### 🧱 Bairros e Quarteirões Trabalhados no Período")
                 quarteiroes_trabalhados = resumo.get("quarteiroes_trabalhados", [])
 
@@ -499,6 +494,5 @@ else:
             bairro.gerenciar_backup_db()
 
     else:
-        # Usuário Operador / Agente de Campo
         st.session_state["operador"] = st.session_state["usuario_atual"]
         lancar_imovel.renderizar_tela_consulta()
