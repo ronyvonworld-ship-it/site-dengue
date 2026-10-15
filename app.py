@@ -396,6 +396,45 @@ else:
             else:
                 st.info("Nenhum imóvel corresponde aos filtros selecionados.")
 
+            # --- NOVA SEÇÃO: EXCLUSÃO DE QUARTEIRÃO COMPLETO ---
+            st.markdown("---")
+            st.subheader("🗑️ Excluir Quarteirão Completo")
+            st.warning("⚠️ **Atenção:** Esta ação excluirá de uma só vez TODOS os imóveis pertencentes ao Bairro e Quarteirão selecionados abaixo.")
+
+            col_del_b, col_del_q = st.columns(2)
+            with col_del_b:
+                del_bairro = st.text_input("Nome do Bairro para exclusão", key="del_bairro_input")
+            with col_del_q:
+                del_quarteirao = st.text_input("Número do Quarteirão para exclusão", key="del_quart_input")
+
+            if "confirmar_del_quarteirao_completo" not in st.session_state:
+                st.session_state["confirmar_del_quarteirao_completo"] = False
+
+            if st.button("🚨 Excluir Quarteirão Inteiro", type="primary", use_container_width=True, key="btn_solicitar_del_quart"):
+                if not del_bairro.strip() or not del_quarteirao.strip():
+                    st.warning("Preencha o Nome do Bairro e o Número do Quarteirão.")
+                else:
+                    st.session_state["confirmar_del_quarteirao_completo"] = True
+
+            if st.session_state.get("confirmar_del_quarteirao_completo", False):
+                st.error(
+                    f"❓ **CONFIRMAÇÃO DE SEGURANÇA:** Tem certeza absoluta de que deseja apagar **TODOS** os imóveis do **Quarteirão {del_quarteirao}** no **Bairro {del_bairro}**?"
+                )
+                col_c_sim, col_c_nao = st.columns(2)
+                with col_c_sim:
+                    if st.button("🔴 Sim, Apagar Quarteirão Inteiro", use_container_width=True, key="btn_sim_del_quart_completo"):
+                        qtd_deletados = bairro.excluir_quarteirao_completo(del_bairro, del_quarteirao)
+                        st.session_state["confirmar_del_quarteirao_completo"] = False
+                        if qtd_deletados > 0:
+                            st.success(f"✅ Quarteirão {del_quarteirao} do bairro {del_bairro} foi completamente apagado! Total de {qtd_deletados} imóvel(is) removido(s).")
+                        else:
+                            st.info(f"Nenhum imóvel encontrado para o Quarteirão {del_quarteirao} no Bairro {del_bairro}.")
+                        st.rerun()
+                with col_c_nao:
+                    if st.button("❌ Cancelar Exclusão", use_container_width=True, key="btn_cancela_del_quart_completo"):
+                        st.session_state["confirmar_del_quarteirao_completo"] = False
+                        st.rerun()
+
         # TAB 3: Resumo & Conclusão de Quarteirão
         with aba_resumo_admin:
             st.subheader("📊 Resumo de Lançamentos por Período e Agente")
