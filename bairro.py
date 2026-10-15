@@ -350,7 +350,7 @@ def listar_quarteiroes_com_status(f_bairro="", f_quarteirao="", f_rua="", f_imov
 
 
 def listar_quarteiroes_com_status_detalhado(f_bairro="", f_quarteirao="", f_rua="", f_imovel="", f_tipo=""):
-    """Retorna os imóveis com o status do ciclo atual, nome do agente responsável e data do lançamento."""
+    """Retorna os imóveis com o status do ciclo atual, nome do agente responsável, data do lançamento e insumos."""
     init_db_bairro()
     inicializar_diario_db()
 
@@ -374,10 +374,13 @@ def listar_quarteiroes_com_status_detalhado(f_bairro="", f_quarteirao="", f_rua=
             q.tipo_imovel,
             COALESCE(d.situacao, 'Pendente') AS status_ciclo,
             COALESCE(d.usuario, '-') AS agente,
-            COALESCE(d.data_registro, '-') AS data_lancamento
+            COALESCE(d.data_registro, '-') AS data_lancamento,
+            COALESCE(d.depositos_eliminados, 0) AS dep_eliminados,
+            COALESCE(d.depositos_tratados, 0) AS dep_tratados,
+            COALESCE(d.gramas_medicamento, 0.0) AS gramas_med
         FROM quarteiroes q
         LEFT JOIN (
-            SELECT imovel_id, situacao, usuario, data_registro,
+            SELECT imovel_id, situacao, usuario, data_registro, depositos_eliminados, depositos_tratados, gramas_medicamento,
                    ROW_NUMBER() OVER (PARTITION BY imovel_id ORDER BY data_registro DESC) as rn
             FROM db_diario.diario
             WHERE data_registro BETWEEN '{data_inicio}' AND '{data_fim}'
@@ -691,30 +694,4 @@ def gerenciar_backup_db():
         st.download_button(
             label="⬇️ Baixar diario.db",
             data=bytes_diario,
-            file_name="diario.db",
-            mime="application/x-sqlite3",
-            use_container_width=True
-        )
-
-    with col_d_limpar:
-        st.markdown("**⚠ Limpar/Zerar Registros do Diário**")
-        if "confirmar_limpeza_diario" not in st.session_state:
-            st.session_state["confirmar_limpeza_diario"] = False
-
-        if not st.session_state["confirmar_limpeza_diario"]:
-            if st.button("🗑️ Limpar diario.db", type="secondary", use_container_width=True):
-                st.session_state["confirmar_limpeza_diario"] = True
-                st.rerun()
-        else:
-            st.warning("⚠️ **ATENÇÃO:** Isso apagará PERMANENTEMENTE todos os lançamentos diários salvos!")
-            c_sim, c_nao = st.columns(2)
-            with c_sim:
-                if st.button("🔴 Sim, Limpar Tudo", use_container_width=True):
-                    limpar_diario_db()
-                    st.session_state["confirmar_limpeza_diario"] = False
-                    st.success("✅ O banco diario.db foi limpo com sucesso!")
-                    st.rerun()
-            with c_nao:
-                if st.button("❌ Cancelar", use_container_width=True):
-                    st.session_state["confirmar_limpeza_diario"] = False
-                    st.rerun()
+            file_name="
