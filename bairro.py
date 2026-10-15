@@ -60,15 +60,18 @@ def obter_cliente_dropbox():
         return None
 
 def excluir_quarteirao_completo(bairro_nome, quarteirao_num):
-    """Exclui todos os imóveis pertencentes a um quarteirão específico de um bairro."""
+    """Exclui todos os imóveis de um único quarteirão específico de um bairro."""
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
+    
+    # Apaga apenas os imóveis que pertencem àquele bairro E àquele quarteirão
     cursor.execute("""
         DELETE FROM quarteiroes 
         WHERE LOWER(TRIM(nome_bairro)) = LOWER(TRIM(?)) 
           AND TRIM(num_quarteirao) = TRIM(?)
     """, (bairro_nome, str(quarteirao_num)))
+    
     total_deletados = cursor.rowcount
     conn.commit()
     conn.close()
