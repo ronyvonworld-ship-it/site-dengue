@@ -59,13 +59,13 @@ def obter_cliente_dropbox():
         st.error(f"❌ Falha ao conectar à API do Dropbox: {e}")
         return None
 
+
 def excluir_quarteirao_completo(bairro_nome, quarteirao_num):
-    """Exclui todos os imóveis de um único quarteirão específico de um bairro."""
+    """Exclui todos os imóveis de um quarteirão específico de um bairro."""
     init_db_bairro()
     conn = sqlite3.connect(ARQUIVO_DB_BAIRRO)
     cursor = conn.cursor()
     
-    # Apaga apenas os imóveis que pertencem àquele bairro E àquele quarteirão
     cursor.execute("""
         DELETE FROM quarteiroes 
         WHERE LOWER(TRIM(nome_bairro)) = LOWER(TRIM(?)) 
@@ -705,7 +705,7 @@ def gerenciar_backup_db():
     st.markdown("---")
     st.markdown("##### 📋 Banco de Lançamentos Diários (`diario.db`)")
     
-    col_d_down, col_d_limpar = st.columns(2)
+    col_d_down, col_d_up, col_d_limpar = st.columns(3)
 
     with col_d_down:
         st.markdown("**Baixar Histórico de Lançamentos**")
@@ -717,6 +717,25 @@ def gerenciar_backup_db():
             mime="application/x-sqlite3",
             use_container_width=True
         )
+
+    with col_d_up:
+        st.markdown("**Enviar/Restaurar diario.db**")
+        diario_enviado = st.file_uploader(
+            "Selecione um arquivo diario.db",
+            type=["db", "sqlite", "sqlite3"],
+            key="uploader_db_diario",
+            label_visibility="collapsed"
+        )
+        if diario_enviado is not None:
+            if st.button("⬆ Restaurar diario.db", use_container_width=True):
+                try:
+                    with open(ARQUIVO_DIARIO_DB, "wb") as f:
+                        f.write(diario_enviado.getbuffer())
+                    enviar_diario_dropbox()
+                    st.success("✅ Banco de diário atualizado e enviado para o Dropbox!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro ao salvar o arquivo do diário: {e}")
 
     with col_d_limpar:
         st.markdown("**⚠ Limpar/Zerar Registros do Diário**")
