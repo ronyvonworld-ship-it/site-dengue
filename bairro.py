@@ -567,12 +567,12 @@ def listar_status_quarteiroes_por_bairro(bairro_nome):
 
     cursor.execute(f"ATTACH DATABASE '{ARQUIVO_DIARIO_DB}' AS db_diario")
 
-    # Correção aplicada: Utiliza COUNT(DISTINCT q.id) para que imóveis com múltiplos 
-    # lançamentos (como Normal e Recuperado) contem apenas uma única vez na visitação.
+    # Correção aplicada: Uso de COUNT(DISTINCT q.id) para que o total de imóveis 
+    # não seja duplicado/alterado caso haja múltiplos registros (como Recuperado) na tabela diário.
     query = f"""
         SELECT 
             q.num_quarteirao,
-            COUNT(q.id) AS total_imoveis,
+            COUNT(DISTINCT q.id) AS total_imoveis,
             COUNT(DISTINCT d.imovel_id) AS total_lancados
         FROM quarteiroes q
         LEFT JOIN db_diario.diario d 
