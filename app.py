@@ -189,16 +189,147 @@ else:
         )
         st.markdown("---")
 
-        aba_cadastro, aba_registros, aba_resumo_admin, aba_backup = st.tabs(
+        # A primeira aba agora é "Resumo & Quarteirões"
+        aba_resumo_admin, aba_cadastro, aba_registros, aba_backup = st.tabs(
             [
+                "📊 Resumo & Quarteirões",
                 "➕ Cadastrar Imóvel",
                 "🔍 Consultar, Editar e Excluir",
-                "📊 Resumo & Quarteirões",
                 "💾 Backup / Restaurar DB",
             ]
         )
 
-        # TAB 1: Cadastrar
+        # TAB 1: Resumo & Conclusão de Quarteirão (Primeira aba)
+        with aba_resumo_admin:
+            st.subheader("📊 Resumo de Lançamentos por Período e Agente")
+
+            col_d1, col_d2, col_d3 = st.columns(3)
+            with col_d1:
+                data_inicio = st.date_input(
+                    "Data Inicial",
+                    value=datetime.now(ZoneInfo("America/Sao_Paulo")).date(),
+                    key="admin_d_inicio",
+                )
+            with col_d2:
+                data_fim = st.date_input(
+                    "Data Final",
+                    value=datetime.now(ZoneInfo("America/Sao_Paulo")).date(),
+                    key="admin_d_fim",
+                )
+            with col_d3:
+                lista_agentes = ["Todos (Total Geral)"] + bairro.obter_lista_agentes()
+                agente_selecionado = st.selectbox(
+                    "Filtrar por Agente / Usuário",
+                    options=lista_agentes,
+                    key="admin_agente_sel",
+                )
+
+            if data_inicio > data_fim:
+                st.error("⚠️ A data inicial não pode ser posterior à data final.")
+            else:
+                resumo = bairro.obter_resumo_por_datas(data_inicio, data_fim, usuario=agente_selecionado)
+
+                total_trabalhados = resumo["total_normal"] + resumo["total_recuperado"]
+                total_informados = resumo["total_normal"] + resumo["total_fechado"]
+
+                st.markdown(f"##### 📍 Situação dos Imóveis Lançados ({agente_selecionado})")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Total Lançados", resumo["total_lancados"])
+                m2.metric("Normal 🟩", resumo["total_normal"])
+                m3.metric("Fechado 🟥", resumo["total_fechado"])
+                m4.metric("Recuperado 🟩", resumo["total_recuperado"])
+
+                mi1, mi2 = st.columns(2)
+                mi1.metric("Imóveis Trabalhados", total_trabalhados)
+                mi2.metric("Imóveis Informados", total_informados)
+
+                st.markdown("##### 🏠 Detalhamento por Tipo de Imóvel")
+                t1, t2, t3, t4 = st.columns(4)
+                t1.metric("Residências", resumo["total_residencia"])
+                t2.metric("Comércios", resumo["total_comercio"])
+                t3.metric("Terrenos Baldios", resumo["total_terreno"])
+                t4.metric("Outros", resumo["total_outro"])
+
+                st.markdown("##### 🧪 Depósitos e Medicamentos")
+                m5, m6, m7 = st.columns(3)
+                m5.metric("Depósitos Eliminados", resumo["total_eliminados"])
+                m6.metric("Depósitos Tratados", resumo["total_tratados"])
+                m7.metric("Medicamento (g)", f"{resumo['total_gramas']:.2f} g")
+
+                st.markdown("##### 🧱 Bairros e Quarteirões Trabalhados no Período")
+                quarteiroes_trabalhados = resumo.get("quarteiroes_trabalhados", [])
+
+                if quarteiroes_trabalhados:
+                    df_q_trabalhados = pd.DataFrame(quarteiroes_trabalhados)
+                    df_q_trabalhados.columns = ["Nome do Bairro", "Nº do Quarteirão"]
+                    
+                    col_q_tab, col_q_info = st.columns([2, 1])
+                    with col_q_tab:
+                        st.dataframe(df_q_trabalhados, use_container_width=True, hide_index=True)
+                    with col_q_info:
+                        st.info(f"📌 **Total de Quarteirões Trabalhados:** `{len(df_q_trabalhados)}`")
+                else:
+                    st.info("ℹ️ Nenhum quarteirão trabalhado encontrado para o período e agente selecionados.")
+
+            st.markdown("---")
+            st.subheader("🏁 Situação de Todos os Quarteirões do Bairro")
+
+            bairro_chk = st.text_input(
+                "Filtrar Bairro para verificar Quarteirões", key="chk_bairro_admin"
+            )
+
+            if st.button("🔍 Pesquisar Quarteirões do Bairro", use_container_width=True):
+                if not bairro_chk:
+                    st.warning("Preencha o nome do Bairro para pesquisar.")
+                else:
+                    resultado_q = bairro.listar_status_quarteiroes_por_bairro(bairro_chk)
+                    if not resultado_q:
+                        st.info(f"Nenhum quarteirão/imóvel encontrado para o Bairro '{bairro_chk}'.")
+                    else:
+                        df_q = pd.DataFrame(resultado_q)
+                        
+                        total_q = len(df_q)
+                        q_concluidos = len(df_q[df_q["Status"] == "✅ CONCLUÍDO"])
+                        
+                        st.markdown(f"**Resultado para o Bairro:** `{bairro_chk}`")
+                        col_m1, col_m2 = st.columns(2)
+                        col_m1.metric("Total de Quarteirões", total_q)
+                        col_m2.metric("Quarteirões Concluídos", f"{q_concluidos} / {total_q}")
+                        
+                        st.dataframe(df_q, use_container_width=True, hide_index=True)
+
+                        # Botão para exclusão em massa do quarteirão selecionado nesta lista
+                        st.markdown("---")
+                        st.markdown("##### 🗑️ Excluir Quarteirão Completo")
+                        
+                        lista_q_disponiveis = df_q["Quarteirão"].tolist()
+                        quarteirao_para_apagar = st.selectbox(
+                            "Selecione o número do quarteirão que deseja apagar inteiramente:",
+                            options=lista_q_disponiveis,
+                            key="select_quart_apagar"
+                        )
+
+                        if "confirma_apagar_quart_resumo" not in st.session_state:
+                            st.session_state["confirma_apagar_quart_resumo"] = False
+
+                        if st.button("🚨 Apagar Quarteirão Selecionado", type="primary", use_container_width=True):
+                            st.session_state["confirma_apagar_quart_resumo"] = True
+
+                        if st.session_state.get("confirma_apagar_quart_resumo", False):
+                            st.error(f"⚠️ **ATENÇÃO:** Tem certeza absoluta de que deseja apagar **TODOS** os imóveis do **Quarteirão {quarteirao_para_apagar}** do bairro **{bairro_chk}**?")
+                            c_s, c_n = st.columns(2)
+                            with c_s:
+                                if st.button("🔴 Sim, Apagar Quarteirão", use_container_width=True):
+                                    removidos = bairro.excluir_quarteirao_completo(bairro_chk, quarteirao_para_apagar)
+                                    st.session_state["confirma_apagar_quart_resumo"] = False
+                                    st.success(f"✅ Quarteirão {quarteirao_para_apagar} apagado com sucesso! ({removidos} imóveis removidos).")
+                                    st.rerun()
+                            with c_n:
+                                if st.button("❌ Cancelar Exclusão", use_container_width=True):
+                                    st.session_state["confirma_apagar_quart_resumo"] = False
+                                    st.rerun()
+
+        # TAB 2: Cadastrar
         with aba_cadastro:
             st.subheader("Adicionar Novo Registro no `bairro.db`")
             with st.form("form_quarteirao"):
@@ -248,7 +379,7 @@ else:
                         )
                         st.success("Registro adicionado com sucesso!")
 
-        # TAB 2: Consultar / Editar / Excluir
+        # TAB 3: Consultar / Editar / Excluir
         with aba_registros:
             st.subheader("Filtros de Pesquisa")
 
@@ -434,105 +565,6 @@ else:
                     if st.button("❌ Cancelar Exclusão", use_container_width=True, key="btn_cancela_del_quart_completo"):
                         st.session_state["confirmar_del_quarteirao_completo"] = False
                         st.rerun()
-
-        # TAB 3: Resumo & Conclusão de Quarteirão
-        with aba_resumo_admin:
-            st.subheader("📊 Resumo de Lançamentos por Período e Agente")
-
-            col_d1, col_d2, col_d3 = st.columns(3)
-            with col_d1:
-                data_inicio = st.date_input(
-                    "Data Inicial",
-                    value=datetime.now(ZoneInfo("America/Sao_Paulo")).date(),
-                    key="admin_d_inicio",
-                )
-            with col_d2:
-                data_fim = st.date_input(
-                    "Data Final",
-                    value=datetime.now(ZoneInfo("America/Sao_Paulo")).date(),
-                    key="admin_d_fim",
-                )
-            with col_d3:
-                lista_agentes = ["Todos (Total Geral)"] + bairro.obter_lista_agentes()
-                agente_selecionado = st.selectbox(
-                    "Filtrar por Agente / Usuário",
-                    options=lista_agentes,
-                    key="admin_agente_sel",
-                )
-
-            if data_inicio > data_fim:
-                st.error("⚠️ A data inicial não pode ser posterior à data final.")
-            else:
-                resumo = bairro.obter_resumo_por_datas(data_inicio, data_fim, usuario=agente_selecionado)
-
-                total_trabalhados = resumo["total_normal"] + resumo["total_recuperado"]
-                total_informados = resumo["total_normal"] + resumo["total_fechado"]
-
-                st.markdown(f"##### 📍 Situação dos Imóveis Lançados ({agente_selecionado})")
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Total Lançados", resumo["total_lancados"])
-                m2.metric("Normal 🟩", resumo["total_normal"])
-                m3.metric("Fechado 🟥", resumo["total_fechado"])
-                m4.metric("Recuperado 🟩", resumo["total_recuperado"])
-
-                mi1, mi2 = st.columns(2)
-                mi1.metric("Imóveis Trabalhados", total_trabalhados)
-                mi2.metric("Imóveis Informados", total_informados)
-
-                st.markdown("##### 🏠 Detalhamento por Tipo de Imóvel")
-                t1, t2, t3, t4 = st.columns(4)
-                t1.metric("Residências", resumo["total_residencia"])
-                t2.metric("Comércios", resumo["total_comercio"])
-                t3.metric("Terrenos Baldios", resumo["total_terreno"])
-                t4.metric("Outros", resumo["total_outro"])
-
-                st.markdown("##### 🧪 Depósitos e Medicamentos")
-                m5, m6, m7 = st.columns(3)
-                m5.metric("Depósitos Eliminados", resumo["total_eliminados"])
-                m6.metric("Depósitos Tratados", resumo["total_tratados"])
-                m7.metric("Medicamento (g)", f"{resumo['total_gramas']:.2f} g")
-
-                st.markdown("##### 🧱 Bairros e Quarteirões Trabalhados no Período")
-                quarteiroes_trabalhados = resumo.get("quarteiroes_trabalhados", [])
-
-                if quarteiroes_trabalhados:
-                    df_q_trabalhados = pd.DataFrame(quarteiroes_trabalhados)
-                    df_q_trabalhados.columns = ["Nome do Bairro", "Nº do Quarteirão"]
-                    
-                    col_q_tab, col_q_info = st.columns([2, 1])
-                    with col_q_tab:
-                        st.dataframe(df_q_trabalhados, use_container_width=True, hide_index=True)
-                    with col_q_info:
-                        st.info(f"📌 **Total de Quarteirões Trabalhados:** `{len(df_q_trabalhados)}`")
-                else:
-                    st.info("ℹ️ Nenhum quarteirão trabalhado encontrado para o período e agente selecionados.")
-
-            st.markdown("---")
-            st.subheader("🏁 Situação de Todos os Quarteirões do Bairro")
-
-            bairro_chk = st.text_input(
-                "Filtrar Bairro para verificar Quarteirões", key="chk_bairro_admin"
-            )
-
-            if st.button("🔍 Pesquisar Quarteirões do Bairro", use_container_width=True):
-                if not bairro_chk:
-                    st.warning("Preencha o nome do Bairro para pesquisar.")
-                else:
-                    resultado_q = bairro.listar_status_quarteiroes_por_bairro(bairro_chk)
-                    if not resultado_q:
-                        st.info(f"Nenhum quarteirão/imóvel encontrado para o Bairro '{bairro_chk}'.")
-                    else:
-                        df_q = pd.DataFrame(resultado_q)
-                        
-                        total_q = len(df_q)
-                        q_concluidos = len(df_q[df_q["Status"] == "✅ CONCLUÍDO"])
-                        
-                        st.markdown(f"**Resultado para o Bairro:** `{bairro_chk}`")
-                        col_m1, col_m2 = st.columns(2)
-                        col_m1.metric("Total de Quarteirões", total_q)
-                        col_m2.metric("Quarteirões Concluídos", f"{q_concluidos} / {total_q}")
-                        
-                        st.dataframe(df_q, use_container_width=True, hide_index=True)
 
         # TAB 4: Backup
         with aba_backup:
