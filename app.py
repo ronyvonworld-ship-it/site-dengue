@@ -189,17 +189,18 @@ else:
         )
         st.markdown("---")
 
-        # A primeira aba agora é "Resumo & Quarteirões"
-        aba_resumo_admin, aba_cadastro, aba_registros, aba_backup = st.tabs(
+        # Abas do Administrador (incluindo a nova aba de Histórico de Lançamentos)
+        aba_resumo_admin, aba_cadastro, aba_registros, aba_historico, aba_backup = st.tabs(
             [
                 "📊 Resumo & Quarteirões",
                 "➕ Cadastrar Imóvel",
                 "🔍 Consultar, Editar e Excluir",
+                "📋 Histórico Geral (`diario.db`)",
                 "💾 Backup / Restaurar DB",
             ]
         )
 
-        # TAB 1: Resumo & Conclusão de Quarteirão (Primeira aba)
+        # TAB 1: Resumo & Conclusão de Quarteirão
         with aba_resumo_admin:
             st.subheader("📊 Resumo de Lançamentos por Período e Agente")
 
@@ -566,7 +567,42 @@ else:
                         st.session_state["confirmar_del_quarteirao_completo"] = False
                         st.rerun()
 
-        # TAB 4: Backup
+        # TAB 4: Histórico Geral do Diário (Nova Aba)
+        with aba_historico:
+            st.subheader("📋 Histórico Completo de Lançamentos de Todos os Ciclos (`diario.db`)")
+            st.markdown("Esta tabela exibe todos os lançamentos históricos salvos no banco de diário, permitindo acompanhar **todas as datas, anos e ciclos** em que cada residência ou imóvel foi visitado.")
+
+            dados_historico = bairro.listar_historico_diario()
+
+            if dados_historico:
+                df_hist = pd.DataFrame(
+                    dados_historico,
+                    columns=[
+                        "ID Registro",
+                        "ID Imóvel",
+                        "Bairro",
+                        "Quarteirão",
+                        "Rua",
+                        "Nº Imóvel",
+                        "Tipo",
+                        "Situação",
+                        "Dep. Eliminados",
+                        "Dep. Tratados",
+                        "Medicamento (g)",
+                        "Agente",
+                        "Data/Hora do Lançamento",
+                    ],
+                )
+                
+                # Extrair o Ano e destacar na visualização
+                df_hist["Data/Hora do Lançamento"] = pd.to_datetime(df_hist["Data/Hora do Lançamento"], errors="coerce")
+                df_hist["Ano"] = df_hist["Data/Hora do Lançamento"].dt.year
+
+                st.dataframe(df_hist, use_container_width=True, hide_index=True)
+            else:
+                st.info("ℹ️ Nenhum registro encontrado no histórico do diário.")
+
+        # TAB 5: Backup
         with aba_backup:
             bairro.gerenciar_backup_db()
 
