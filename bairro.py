@@ -200,6 +200,34 @@ def limpar_diario_db():
     enviar_diario_dropbox()
 
 
+def listar_historico_diario():
+    """Retorna todos os registros históricos do banco diario.db para exibição geral."""
+    inicializar_diario_db()
+    conn = sqlite3.connect(ARQUIVO_DIARIO_DB)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            id,
+            imovel_id,
+            bairro,
+            quarteirao,
+            rua,
+            num_imovel,
+            tipo_imovel,
+            situacao,
+            depositos_eliminados,
+            depositos_tratados,
+            gramas_medicamento,
+            usuario,
+            data_registro
+        FROM diario
+        ORDER BY data_registro DESC
+    """)
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
 # --- LÓGICA DE CICLOS ANUAIS (6 CICLOS/ANO) ---
 
 def obter_info_ciclo_atual():
@@ -567,17 +595,20 @@ def listar_status_quarteiroes_por_bairro(bairro_nome):
 
     cursor.execute(f"ATTACH DATABASE '{ARQUIVO_DIARIO_DB}' AS db_diario")
 
-    # Correção aplicada: Uso de COUNT(DISTINCT q.id) para que o total de imóveis 
-    # não seja duplicado/alterado caso haja múltiplos registros (como Recuperado) na tabela diário.
+    # Correção aplicada: Utiliza ROW_NUMBER no subselect do diário para que imóveis com 
+    # múltiplos registros no ciclo não alterem/dupliquem a contagem em total_imoveis ou total_lancados.
     query = f"""
         SELECT 
             q.num_quarteirao,
-            COUNT(DISTINCT q.id) AS total_imoveis,
-            COUNT(DISTINCT d.imovel_id) AS total_lancados
+            COUNT(q.id) AS total_imoveis,
+            COUNT(d.imovel_id) AS total_lancados
         FROM quarteiroes q
-        LEFT JOIN db_diario.diario d 
-            ON q.id = d.imovel_id 
-           AND d.data_registro BETWEEN '{data_inicio}' AND '{data_fim}'
+        LEFT JOIN (
+            SELECT imovel_id, situacao, data_registro,
+                   ROW_NUMBER() OVER (PARTITION BY imovel_id ORDER BY data_registro DESC) as rn
+            FROM db_diario.diario
+            WHERE data_registro BETWEEN '{data_inicio}' AND '{data_fim}'
+        ) d ON q.id = d.imovel_id AND d.rn = 1
         WHERE LOWER(q.nome_bairro) LIKE LOWER(?)
         GROUP BY q.num_quarteirao
         ORDER BY CAST(q.num_quarteirao AS INTEGER) ASC
